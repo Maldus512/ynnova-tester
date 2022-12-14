@@ -3,6 +3,19 @@ import multiprocessing
 from pathlib import Path
 
 
+def PhonyTargets(
+    target,
+    action,
+    depends,
+    env=None,
+):
+    # Creates a Phony target
+    if not env:
+        env = DefaultEnvironment()
+    t = env.Alias(target, depends, action)
+    env.AlwaysBuild(t)
+
+
 # Name of the application
 PROGRAM = "app"
 
@@ -12,10 +25,13 @@ COMPONENTS = "components"
 CONFIG = f"{MAIN}/config"
 LVGL = f"{COMPONENTS}/lvgl"
 DRIVERS = f"{COMPONENTS}/lv_drivers"
+LIGHTMODBUS = f"{COMPONENTS}/liblightmodbus"
+GEL = f"{COMPONENTS}/generic_embedded_libs"
 
 # Compilation flags
 CFLAGS = ["-Wall", "-Wextra", "-g", "-O0", ]
-CPPPATH = [COMPONENTS, MAIN, LVGL, CONFIG, DRIVERS]
+CPPPATH = [COMPONENTS, f"#{MAIN}", f"#{LVGL}", f"#{CONFIG}",
+           DRIVERS, f"{COMPONENTS}/log/src", f"{LIGHTMODBUS}/include"]
 CPPDEFINES = ["LV_CONF_INCLUDE_SIMPLE"]
 
 
@@ -27,12 +43,25 @@ def main():
 
     env_options = {
         # Include the external environment to access DISPLAY and run the app as a target
+        "ENV": os.environ,
         "CPPPATH": CPPPATH,
         "CPPDEFINES": CPPDEFINES,
         "CCFLAGS": CFLAGS,
-        "LIBS" : ["-lSDL2"],
+        "LIBS": ["-lSDL2", "-lpthread"],
     }
     env = Environment(**env_options)
+    env.Tool("compilation_db")
+
+    lv_pman_env = env
+    (lv_pman, include) = SConscript(
+        f"{COMPONENTS}/lv_page_manager/SConscript", exports=["lv_pman_env"])
+    env['CPPPATH'] += [include]
+
+    gel_env = env
+    gel_selected = []
+    (gel, include) = SConscript(
+        f"{GEL}/SConscript", exports=["gel_env", "gel_selected"])
+    env['CPPPATH'] += [include]
 
     # Project sources
     sources = [File(filename) for filename in Path(
@@ -41,8 +70,12 @@ def main():
                 for filename in Path(f"{LVGL}/src").rglob("*.c")]  # LVGL
     sources += [File(filename)
                 for filename in Path(DRIVERS).rglob("*.c")]  # Drivers
+    sources += [File(f"{COMPONENTS}/log/src/log.c")]
 
-    env.Program(PROGRAM, sources)
+    prog = env.Program(PROGRAM, sources + lv_pman + gel)
+    PhonyTargets("run", f"./{PROGRAM}", prog, env)
+    compileDB = env.CompilationDatabase('build/compile_commands.json')
+    env.Depends(prog, compileDB)
 
 
 main()

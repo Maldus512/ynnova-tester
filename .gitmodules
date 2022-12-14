@@ -4,3 +4,15 @@
 [submodule "components/lvgl"]
 	path = components/lvgl
 	url = https://github.com/lvgl/lvgl.git
+[submodule "components/lv_page_manager"]
+	path = components/lv_page_manager
+	url = https://github.com/Maldus512/lv_page_manager.git
+[submodule "components/log.c"]
+	path = components/log
+	url = https://github.com/Maldus512/log.c.git
+[submodule "components/liblightmodbus"]
+	path = components/liblightmodbus
+	url = https://github.com/Jacajack/liblightmodbus.git
+[submodule "components/generic_embedded_libs"]
+	path = components/generic_embedded_libs
+	url = https://github.com/Maldus512/generic_embedded_libs.git
