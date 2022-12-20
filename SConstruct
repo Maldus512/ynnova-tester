@@ -27,11 +27,13 @@ LVGL = f"{COMPONENTS}/lvgl"
 DRIVERS = f"{COMPONENTS}/lv_drivers"
 LIGHTMODBUS = f"{COMPONENTS}/liblightmodbus"
 GEL = f"{COMPONENTS}/generic_embedded_libs"
+CJSON = f"{COMPONENTS}/cJSON"
+B64 = f"{COMPONENTS}/b64.c"
 
 # Compilation flags
 CFLAGS = ["-Wall", "-Wextra", "-g", "-O0", ]
 CPPPATH = [COMPONENTS, f"#{MAIN}", f"#{LVGL}", f"#{CONFIG}",
-           DRIVERS, f"{COMPONENTS}/log/src", f"{LIGHTMODBUS}/include"]
+           DRIVERS, f"{COMPONENTS}/log/src", f"{LIGHTMODBUS}/include", CJSON, B64]
 CPPDEFINES = ["LV_CONF_INCLUDE_SIMPLE"]
 
 
@@ -58,7 +60,7 @@ def main():
     env['CPPPATH'] += [include]
 
     gel_env = env
-    gel_selected = []
+    gel_selected = ["data_structures"]
     (gel, include) = SConscript(
         f"{GEL}/SConscript", exports=["gel_env", "gel_selected"])
     env['CPPPATH'] += [include]
@@ -71,6 +73,9 @@ def main():
     sources += [File(filename)
                 for filename in Path(DRIVERS).rglob("*.c")]  # Drivers
     sources += [File(f"{COMPONENTS}/log/src/log.c")]
+    sources += [File(f"{CJSON}/cJSON.c")]
+    sources += [File(f"{B64}/buffer.c"),
+                File(f"{B64}/decode.c"), File(f"{B64}/encode.c")]
 
     prog = env.Program(PROGRAM, sources + lv_pman + gel)
     PhonyTargets("run", f"./{PROGRAM}", prog, env)

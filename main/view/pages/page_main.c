@@ -15,6 +15,7 @@ LV_IMG_DECLARE(img_icon_settings);
 LV_IMG_DECLARE(img_icon_play);
 LV_IMG_DECLARE(img_icon_pause);
 LV_IMG_DECLARE(img_icon_reset);
+LV_IMG_DECLARE(img_icon_download);
 
 
 enum {
@@ -22,7 +23,7 @@ enum {
     SETTINGS_BTN_ID,
     PLAY_PAUSE_BTN_ID,
     RESET_BTN_ID,
-    TEST_BTN_ID,
+    DOWNLOAD_BTN_ID,
 };
 
 
@@ -44,6 +45,7 @@ struct page_data {
     lv_obj_t *btn_connection;
     lv_obj_t *btn_play_pause;
     lv_obj_t *btn_reset;
+    lv_obj_t *btn_download;
 
     lv_obj_t *test_interface;
     lv_obj_t *board_missing_msg;
@@ -63,21 +65,7 @@ static test_widget_t            test_widget_create(lv_obj_t *root, size_t num, u
 static lv_pman_controller_msg_t next_test(model_t *pmodel, struct page_data *pdata);
 
 
-static const lv_style_const_prop_t style_unselected_props[] = {
-    LV_STYLE_CONST_BORDER_WIDTH(8),
-    LV_STYLE_CONST_BORDER_COLOR(STYLE_FG_COLOR),
-    LV_STYLE_CONST_BORDER_OPA(LV_OPA_TRANSP),
-};
-static LV_STYLE_CONST_INIT(style_unselected, style_unselected_props);
-
-
-static const lv_style_const_prop_t style_selected_props[] = {
-    LV_STYLE_CONST_BORDER_OPA(LV_OPA_COVER),
-};
-static LV_STYLE_CONST_INIT(style_selected, style_selected_props);
-
-
-static void *create_page(lv_pman_page_handle_t page, void *args, void *extra) {
+static void *create_page(void *args, void *extra) {
     struct page_data *pdata = lv_mem_alloc(sizeof(struct page_data));
     assert(pdata != NULL);
 
@@ -87,7 +75,7 @@ static void *create_page(lv_pman_page_handle_t page, void *args, void *extra) {
 }
 
 
-static void open_page(lv_pman_page_handle_t page, void *args, void *data) {
+static void open_page(void *args, void *data) {
     lv_obj_t         *btn, *obj, *lbl;
     struct page_data *pdata  = data;
     model_t          *pmodel = args;
@@ -105,21 +93,28 @@ static void open_page(lv_pman_page_handle_t page, void *args, void *data) {
     lv_obj_align(right_panel, LV_ALIGN_TOP_RIGHT, 0, 0);
     lv_obj_set_flex_flow(right_panel, LV_FLEX_FLOW_COLUMN_REVERSE);
     lv_obj_set_flex_align(right_panel, LV_FLEX_ALIGN_END, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_style_pad_top(right_panel, 2, LV_STATE_DEFAULT);
+    lv_obj_set_style_pad_bottom(right_panel, 2, LV_STATE_DEFAULT);
+    lv_obj_set_style_pad_gap(right_panel, 8, LV_STATE_DEFAULT);
 
     btn = view_common_icon_button_create(right_panel, &img_icon_connection);
-    lv_pman_register_obj_id(page, btn, CONNECTION_BTN_ID);
+    lv_pman_register_obj_id(btn, CONNECTION_BTN_ID);
     pdata->btn_connection = btn;
 
     btn = view_common_icon_button_create(right_panel, &img_icon_settings);
-    lv_pman_register_obj_id(page, btn, SETTINGS_BTN_ID);
+    lv_pman_register_obj_id(btn, SETTINGS_BTN_ID);
 
     btn = view_common_icon_button_create(right_panel, &img_icon_play);
-    lv_pman_register_obj_id(page, btn, PLAY_PAUSE_BTN_ID);
+    lv_pman_register_obj_id(btn, PLAY_PAUSE_BTN_ID);
     pdata->btn_play_pause = btn;
 
     btn = view_common_icon_button_create(right_panel, &img_icon_reset);
-    lv_pman_register_obj_id(page, btn, RESET_BTN_ID);
+    lv_pman_register_obj_id(btn, RESET_BTN_ID);
     pdata->btn_reset = btn;
+
+    btn = view_common_icon_button_create(right_panel, &img_icon_download);
+    lv_pman_register_obj_id(btn, DOWNLOAD_BTN_ID);
+    pdata->btn_download = btn;
 
 
     lv_obj_t *left_panel = lv_obj_create(cont);
@@ -131,13 +126,13 @@ static void open_page(lv_pman_page_handle_t page, void *args, void *data) {
     obj = lv_obj_create(left_panel);
     lv_obj_set_size(obj, LV_PCT(100), LV_PCT(100));
     lv_obj_add_style(obj, (lv_style_t *)&style_transparent_cont, LV_STATE_DEFAULT);
+    lv_obj_add_style(obj, (lv_style_t *)&style_scrollbar, LV_PART_SCROLLBAR);
 
     lv_obj_set_flex_flow(obj, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_flex_align(obj, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
 
-    for (size_t i = 0; i < model_get_num_tests(pmodel); i++) {
+    for (size_t i = 0; i < model_get_num_tests_in_current_unit(pmodel); i++) {
         pdata->test_widgets[i] = test_widget_create(obj, i, model_get_test_code(pmodel, i));
-        lv_pman_register_obj_id_and_number(page, pdata->test_widgets[i].obj, TEST_BTN_ID, i);
     }
 
     pdata->test_interface = obj;
@@ -170,27 +165,14 @@ static void open_page(lv_pman_page_handle_t page, void *args, void *data) {
 
     pdata->board_open_msg = obj;
 
-
-#if 0
-    lv_obj_t *bottom_panel = lv_obj_create(cont);
-    lv_obj_add_style(bottom_panel, (lv_style_t *)&style_panel, LV_STATE_DEFAULT);
-    lv_obj_set_size(bottom_panel, LV_PCT(100), LOG_PANEL_HEIGHT - 16);
-    lv_obj_align(bottom_panel, LV_ALIGN_BOTTOM_MID, 0, 0);
-#endif
-
     update_page(pmodel, pdata);
 }
 
 
-static lv_pman_msg_t process_page_event(lv_pman_page_handle_t page, void *args, void *data, lv_pman_event_t event) {
+static lv_pman_msg_t process_page_event(void *args, void *data, lv_pman_event_t event) {
     lv_pman_msg_t     msg    = {0};
     model_t          *pmodel = args;
     struct page_data *pdata  = data;
-
-    if (!lv_pman_is_page_open(page)) {
-        // Do not handle events if not open
-        return msg;
-    }
 
     switch (event.tag) {
         case LV_PMAN_EVENT_TAG_OPEN:
@@ -220,11 +202,6 @@ static lv_pman_msg_t process_page_event(lv_pman_page_handle_t page, void *args, 
                             update_page(pmodel, pdata);
                             break;
 
-                        case TEST_BTN_ID:
-                            model_set_test_index(pmodel, event.lvgl.number);
-                            update_page(pmodel, pdata);
-                            break;
-
                         case RESET_BTN_ID:
                             model_reset_test_sequence(pmodel);
                             msg.cmsg.tag = LV_PMAN_CONTROLLER_MSG_TAG_RESET_TEST;
@@ -237,7 +214,11 @@ static lv_pman_msg_t process_page_event(lv_pman_page_handle_t page, void *args, 
 
                         case SETTINGS_BTN_ID:
                             msg.vmsg.tag  = LV_PMAN_VIEW_MSG_TAG_CHANGE_PAGE;
-                            msg.vmsg.page = &page_test_sequence;
+                            msg.vmsg.page = &page_settings;
+                            break;
+
+                        case DOWNLOAD_BTN_ID:
+                            msg.cmsg.tag = LV_PMAN_CONTROLLER_MSG_TAG_DOWNLOAD;
                             break;
                     }
                     break;
@@ -252,9 +233,6 @@ static lv_pman_msg_t process_page_event(lv_pman_page_handle_t page, void *args, 
         case LV_PMAN_EVENT_TAG_USER: {
             switch (event.user_event.tag) {
                 case LV_PMAN_USER_EVENT_TAG_UPDATE:
-                    log_info("Update: test %i, state %i, result %i", model_get_last_test(pmodel),
-                             model_get_test_state(pmodel), model_get_test_result(pmodel));
-
                     if (pdata->previous_test_state != model_get_test_state(pmodel) ||
                         pdata->previous_test_code != model_get_last_test(pmodel)) {
 
@@ -333,7 +311,8 @@ static void update_page(model_t *pmodel, struct page_data *pdata) {
     lv_obj_set_style_img_recolor(lv_obj_get_child(pdata->btn_connection, 0),
                                  model_get_communication_error(pmodel) ? STYLE_RED : STYLE_FG_COLOR, LV_STATE_DEFAULT);
 
-    view_common_set_disabled(pdata->btn_reset, pdata->state != PAGE_STATE_PAUSED);
+    view_common_set_disabled(pdata->btn_reset, pdata->state != PAGE_STATE_PAUSED || model_get_downloading(pmodel));
+    view_common_set_disabled(pdata->btn_download, pdata->state != PAGE_STATE_PAUSED || model_get_downloading(pmodel));
 
     switch (model_get_board_state(pmodel)) {
         case BOARD_STATE_ABSENT:
@@ -355,9 +334,7 @@ static void update_page(model_t *pmodel, struct page_data *pdata) {
             break;
     }
 
-    for (size_t i = 0; i < model_get_num_tests(pmodel); i++) {
-        view_common_set_disabled(pdata->test_widgets[i].obj, pdata->state != PAGE_STATE_PAUSED);
-
+    for (size_t i = 0; i < model_get_num_tests_in_current_unit(pmodel); i++) {
         if (model_get_test_done_history(pmodel, i)) {
             view_common_set_checked(pdata->test_widgets[i].result_cb, 1);
 
@@ -391,7 +368,8 @@ static void update_page(model_t *pmodel, struct page_data *pdata) {
                     break;
 
                 default:
-                    view_common_set_disabled(pdata->btn_play_pause, model_get_communication_error(pmodel));
+                    view_common_set_disabled(pdata->btn_play_pause,
+                                             model_get_communication_error(pmodel) || model_get_downloading(pmodel));
                     view_common_set_hidden(pdata->test_widgets[i].spinner, 1);
                     break;
             }

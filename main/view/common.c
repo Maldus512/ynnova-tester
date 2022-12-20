@@ -1,5 +1,9 @@
 #include "view.h"
 #include "style/style.h"
+#include "common.h"
+
+
+static void delete_obj_timer(lv_timer_t *timer);
 
 
 void view_common_set_hidden(lv_obj_t *obj, int hidden) {
@@ -39,4 +43,41 @@ void view_common_set_disabled(lv_obj_t *obj, uint8_t disabled) {
     } else if ((lv_obj_get_state(obj) & LV_STATE_DISABLED) == 0 && disabled) {
         lv_obj_add_state(obj, LV_STATE_DISABLED);
     }
+}
+
+
+lv_obj_t *view_common_toast(const char *msg) {
+    lv_obj_t *obj = view_common_toast_with_parent(msg, lv_layer_top());
+    return obj;
+}
+
+
+lv_obj_t *view_common_toast_with_parent(const char *msg, lv_obj_t *parent) {
+    lv_obj_t *obj = lv_obj_create(parent);
+    lv_obj_set_width(obj, 400);
+    lv_obj_clear_flag(obj, LV_OBJ_FLAG_SCROLLABLE);
+
+    lv_obj_t *lbl = lv_label_create(obj);
+    lv_label_set_long_mode(lbl, LV_LABEL_LONG_WRAP);
+    lv_label_set_text(lbl, msg);
+    lv_obj_set_style_text_align(lbl, LV_TEXT_ALIGN_CENTER, LV_STATE_DEFAULT);
+    lv_obj_align(lbl, LV_ALIGN_CENTER, 0, 0);
+    lv_obj_set_width(lbl, 380);
+    if (lv_obj_get_height(lbl) > 84) {
+        lv_obj_set_height(obj, lv_obj_get_height(lbl) + 20);
+    } else {
+        lv_obj_set_height(obj, 64);
+    }
+
+    lv_obj_align(obj, LV_ALIGN_BOTTOM_MID, 0, -40);
+
+    lv_timer_t *timer = lv_timer_create(delete_obj_timer, 5000, obj);
+    lv_timer_set_repeat_count(timer, 1);
+
+    return obj;
+}
+
+
+static void delete_obj_timer(lv_timer_t *timer) {
+    lv_obj_del(timer->user_data);
 }

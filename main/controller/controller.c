@@ -4,13 +4,20 @@
 #include "view/view.h"
 #include "lv_page_manager.h"
 #include "machine/machine.h"
+#include "storage/configuration.h"
 #include "log.h"
 #include "utils/system_time.h"
 #include "gel/timer/timecheck.h"
+#include "stflash.h"
+#include "view/common.h"
+#include "observer.h"
 
 
 void controller_init(model_t *pmodel) {
     machine_init();
+    stflash_init();
+    configuration_init(pmodel);
+    observer_init(pmodel);
 
     machine_reset_test();
 
@@ -23,6 +30,16 @@ void controller_manage_message(void *args, lv_pman_controller_msg_t msg) {
 
     switch (msg.tag) {
         case LV_PMAN_CONTROLLER_MSG_TAG_NONE:
+            break;
+
+        case LV_PMAN_CONTROLLER_MSG_TAG_SAVE:
+            configuration_save_tests(pmodel);
+            break;
+
+        case LV_PMAN_CONTROLLER_MSG_TAG_DOWNLOAD:
+            model_set_downloading(pmodel, 1);
+            stflash_run();
+            view_simple_event(LV_PMAN_USER_EVENT_TAG_UPDATE);
             break;
 
         case LV_PMAN_CONTROLLER_MSG_TAG_RESET_TEST:
@@ -66,9 +83,28 @@ void controller_manage(model_t *pmodel) {
         }
     }
 
+    stflash_response_t response;
+
+    if (stflash_get_response(&response)) {
+        switch (response) {
+            case STFLASH_RESPONSE_OK:
+                model_set_downloading(pmodel, 0);
+                view_common_toast("Firmware caricato con successo");
+                break;
+
+            case STFLASH_RESPONSE_FAIL:
+                model_set_downloading(pmodel, 0);
+                view_common_toast("Caricamento del firmware fallito");
+                break;
+        }
+        view_simple_event(LV_PMAN_USER_EVENT_TAG_UPDATE);
+    }
+
     if (is_expired(status_ts, get_millis(), 200UL)) {
         machine_read_status();
 
         status_ts = get_millis();
     }
+
+    observer_observe(pmodel);
 }

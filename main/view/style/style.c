@@ -19,6 +19,32 @@ static const lv_style_const_prop_t style_panel_props[] = {
 LV_STYLE_CONST_INIT(style_panel, style_panel_props);
 
 
+static const lv_style_const_prop_t style_unselected_props[] = {
+    LV_STYLE_CONST_BORDER_WIDTH(8),
+    LV_STYLE_CONST_BORDER_COLOR(STYLE_FG_COLOR),
+    LV_STYLE_CONST_BORDER_OPA(LV_OPA_TRANSP),
+};
+LV_STYLE_CONST_INIT(style_unselected, style_unselected_props);
+
+
+static const lv_style_const_prop_t style_selected_props[] = {
+    LV_STYLE_CONST_BORDER_OPA(LV_OPA_COVER),
+};
+LV_STYLE_CONST_INIT(style_selected, style_selected_props);
+
+
+static const lv_style_const_prop_t style_scrollbar_props[] = {
+    LV_STYLE_CONST_PAD_BOTTOM(8),
+    LV_STYLE_CONST_PAD_TOP(8),
+    LV_STYLE_CONST_PAD_LEFT(4),
+    LV_STYLE_CONST_PAD_RIGHT(4),
+    LV_STYLE_CONST_WIDTH(16),
+    LV_STYLE_CONST_OPA(LV_OPA_80),
+    LV_STYLE_CONST_BG_COLOR(STYLE_FG_COLOR),
+};
+LV_STYLE_CONST_INIT(style_scrollbar, style_scrollbar_props);
+
+
 lv_style_t style_icon = {0};
 
 

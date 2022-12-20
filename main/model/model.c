@@ -1,23 +1,41 @@
+#include <stdio.h>
 #include <string.h>
 #include <assert.h>
 #include "model.h"
 
 
+test_code_t test_codes[29] = {
+    TEST_CODE_REQUIRED_02, TEST_CODE_REQUIRED_03, TEST_CODE_REQUIRED_04, TEST_CODE_REQUIRED_05, TEST_CODE_REQUIRED_06,
+    TEST_CODE_07,          TEST_CODE_08,          TEST_CODE_09,          TEST_CODE_11,          TEST_CODE_13,
+    TEST_CODE_15,          TEST_CODE_17,          TEST_CODE_19,          TEST_CODE_20,          TEST_CODE_21,
+    TEST_CODE_24,          TEST_CODE_27,          TEST_CODE_35,          TEST_CODE_43,          TEST_CODE_45,
+    TEST_CODE_47,          TEST_CODE_49,          TEST_CODE_51,          TEST_CODE_53,          TEST_CODE_55,
+    TEST_CODE_57,          TEST_CODE_58,          TEST_CODE_61,          TEST_CODE_62,
+};
+
+
 void model_init(model_t *pmodel) {
     assert(pmodel != NULL);
 
-    pmodel->test_codes[0] = 2;
-    pmodel->test_codes[1] = 3;
-    pmodel->test_codes[2] = 4;
-    pmodel->test_codes[3] = 5;
-    pmodel->test_codes[4] = 6;
-    pmodel->num_tests     = 5;
+    memset(pmodel->config.test_units, 0, sizeof(pmodel->config.test_units));
+    memset(pmodel->config.test_unit_names, 0, sizeof(pmodel->config.test_unit_names));
+    snprintf(pmodel->config.test_unit_names[DEFAULT_TEST_CONFIGURATION], TEST_UNIT_NAME_LENGTH, "DEFAULT");
+
+    // Always at least the default test unit
+    pmodel->config.test_unit_index       = DEFAULT_TEST_CONFIGURATION;
+    pmodel->config.num_custom_test_units = 0;
+
+    for (size_t i = 0; i < sizeof(test_codes) / sizeof(test_codes[0]); i++) {
+        pmodel->config.test_units[DEFAULT_TEST_CONFIGURATION] |= (1ULL << test_codes[i]);
+    }
 
     pmodel->run.last_test           = 0;
     pmodel->run.communication_error = 0;
     pmodel->run.board_state         = BOARD_STATE_READY;
     pmodel->run.test_state          = TEST_STATE_DONE;
     pmodel->run.test_result         = TEST_RESULT_OK;
+    pmodel->run.downloading         = 0;
+    pmodel->run.to_save             = 0;
 
     pmodel->run.test_index = 0;
 
@@ -26,15 +44,63 @@ void model_init(model_t *pmodel) {
 }
 
 
+uint16_t model_get_num_tests_in_current_unit(model_t *pmodel) {
+    assert(pmodel != NULL);
+    uint16_t count = 0;
+
+    for (size_t i = 0; i < sizeof(pmodel->config.test_units[0]) * 8; i++) {
+        if (model_is_test_required(i) ||
+            (pmodel->config.test_units[pmodel->config.test_unit_index] & (1ULL << i)) > 0) {
+            count++;
+        }
+    }
+
+    return count;
+}
+
+
+uint8_t model_is_test_configured_in_current_unit(model_t *pmodel, test_code_t code) {
+    assert(pmodel != NULL);
+    return model_is_test_configured(pmodel, pmodel->config.test_unit_index, code);
+}
+
+
+uint8_t model_is_test_configured(model_t *pmodel, size_t test_unit_index, test_code_t code) {
+    assert(pmodel != NULL);
+    return model_is_test_required(code) || (pmodel->config.test_units[test_unit_index] & (1ULL << code)) > 0;
+}
+
+
+void model_toggle_test_configured(model_t *pmodel, size_t test_unit_index, test_code_t code) {
+    assert(pmodel != NULL);
+    if (!model_is_test_required(code)) {
+        if (model_is_test_configured(pmodel, test_unit_index, code)) {
+            pmodel->config.test_units[test_unit_index] &= ~(1ULL << code);
+        } else {
+            pmodel->config.test_units[test_unit_index] |= 1ULL << code;
+        }
+    }
+}
+
+
 uint16_t model_get_test_code(model_t *pmodel, size_t num) {
     assert(pmodel != NULL);
-    return pmodel->test_codes[num];
+    size_t count = 0;
+    size_t i     = 0;
+
+    while (count < num && i < sizeof(test_codes) / sizeof(test_codes[0])) {
+        if (model_is_test_configured_in_current_unit(pmodel, test_codes[i])) {
+            count++;
+        }
+    }
+
+    return test_codes[count];
 }
 
 
 uint16_t model_get_current_test_code(model_t *pmodel) {
     assert(pmodel != NULL);
-    return pmodel->test_codes[pmodel->run.test_index];
+    return model_get_test_code(pmodel, pmodel->run.test_index);
 }
 
 
@@ -47,13 +113,13 @@ void model_reset_test_sequence(model_t *pmodel) {
 
 uint8_t model_is_test_sequence_done(model_t *pmodel) {
     assert(pmodel != NULL);
-    return pmodel->run.test_index >= model_get_num_tests(pmodel);
+    return pmodel->run.test_index >= model_get_num_tests_in_current_unit(pmodel);
 }
 
 
 uint8_t model_next_test(model_t *pmodel) {
     assert(pmodel != NULL);
-    if (pmodel->run.test_index < model_get_num_tests(pmodel)) {
+    if (pmodel->run.test_index < model_get_num_tests_in_current_unit(pmodel)) {
         pmodel->run.test_index++;
     }
 
@@ -134,5 +200,75 @@ uint16_t model_get_test_index(model_t *pmodel) {
         return 0;
     } else {
         return pmodel->run.test_index;
+    }
+}
+
+
+void model_add_default_test_unit(model_t *pmodel) {
+    assert(pmodel != NULL);
+
+    uint64_t tests                       = 0;
+    char     name[TEST_UNIT_NAME_LENGTH] = {0};
+
+    size_t new_index = model_get_num_test_units(pmodel);
+    snprintf(name, TEST_UNIT_NAME_LENGTH, "Unita' test %zu", new_index);
+
+    for (size_t i = 0; i < sizeof(test_codes) / sizeof(test_codes[0]); i++) {
+        tests |= (1ULL << test_codes[i]);
+    }
+
+    model_add_test_unit(pmodel, name, tests);
+}
+
+
+void model_add_test_unit(model_t *pmodel, const char *name, uint64_t tests) {
+    assert(pmodel != NULL);
+
+    if (model_get_num_test_units(pmodel) < MAX_NUM_TEST_UNITS) {
+        size_t new_index = model_get_num_test_units(pmodel);
+
+        pmodel->config.num_custom_test_units++;
+        snprintf(pmodel->config.test_unit_names[new_index], TEST_UNIT_NAME_LENGTH, "%s", name);
+
+        pmodel->config.test_units[new_index] = tests;
+    }
+}
+
+
+void model_remove_test_unit(model_t *pmodel, size_t test_unit_index) {
+    assert(pmodel != NULL && test_unit_index != 0 && test_unit_index < model_get_num_test_units(pmodel));
+
+    for (size_t i = test_unit_index; i < (size_t)model_get_num_test_units(pmodel) - 1; i++) {
+        pmodel->config.test_units[i] = pmodel->config.test_units[i + 1];
+        strcpy(pmodel->config.test_unit_names[i], pmodel->config.test_unit_names[i + 1]);
+    }
+
+    pmodel->config.num_custom_test_units--;
+}
+
+
+const char *model_get_test_unit_name(model_t *pmodel, size_t test_unit_index) {
+    assert(pmodel != NULL);
+    return (const char *)pmodel->config.test_unit_names[test_unit_index];
+}
+
+
+uint16_t model_get_num_test_units(model_t *pmodel) {
+    assert(pmodel != NULL);
+    return pmodel->config.num_custom_test_units + 1;
+}
+
+
+uint8_t model_is_test_required(test_code_t code) {
+    switch (code) {
+        case TEST_CODE_REQUIRED_02:
+        case TEST_CODE_REQUIRED_03:
+        case TEST_CODE_REQUIRED_04:
+        case TEST_CODE_REQUIRED_05:
+        case TEST_CODE_REQUIRED_06:
+            return 1;
+
+        default:
+            return 0;
     }
 }

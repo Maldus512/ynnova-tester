@@ -11,6 +11,6 @@ void view_change_page(model_t *pmodel, lv_pman_page_t page);
 void view_simple_event(lv_pman_user_event_tag_t tag);
 
 
-extern const lv_pman_page_t page_main, page_test_sequence;
+extern const lv_pman_page_t page_main, page_settings, page_test_unit;
 
 #endif
