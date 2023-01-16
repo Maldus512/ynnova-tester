@@ -75,7 +75,7 @@ static void *create_page(void *args, void *extra) {
 }
 
 
-static void open_page(void *args, void *data) {
+static void open_page(lv_pman_handle_t handle, void *args, void *data) {
     lv_obj_t         *btn, *obj, *lbl;
     struct page_data *pdata  = data;
     model_t          *pmodel = args;
@@ -98,22 +98,22 @@ static void open_page(void *args, void *data) {
     lv_obj_set_style_pad_gap(right_panel, 8, LV_STATE_DEFAULT);
 
     btn = view_common_icon_button_create(right_panel, &img_icon_connection);
-    lv_pman_register_obj_id(btn, CONNECTION_BTN_ID);
+    lv_pman_register_obj_id(handle, btn, CONNECTION_BTN_ID);
     pdata->btn_connection = btn;
 
     btn = view_common_icon_button_create(right_panel, &img_icon_settings);
-    lv_pman_register_obj_id(btn, SETTINGS_BTN_ID);
+    lv_pman_register_obj_id(handle, btn, SETTINGS_BTN_ID);
 
     btn = view_common_icon_button_create(right_panel, &img_icon_play);
-    lv_pman_register_obj_id(btn, PLAY_PAUSE_BTN_ID);
+    lv_pman_register_obj_id(handle, btn, PLAY_PAUSE_BTN_ID);
     pdata->btn_play_pause = btn;
 
     btn = view_common_icon_button_create(right_panel, &img_icon_reset);
-    lv_pman_register_obj_id(btn, RESET_BTN_ID);
+    lv_pman_register_obj_id(handle, btn, RESET_BTN_ID);
     pdata->btn_reset = btn;
 
     btn = view_common_icon_button_create(right_panel, &img_icon_download);
-    lv_pman_register_obj_id(btn, DOWNLOAD_BTN_ID);
+    lv_pman_register_obj_id(handle, btn, DOWNLOAD_BTN_ID);
     pdata->btn_download = btn;
 
 
@@ -131,8 +131,9 @@ static void open_page(void *args, void *data) {
     lv_obj_set_flex_flow(obj, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_flex_align(obj, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
 
-    for (size_t i = 0; i < model_get_num_tests_in_current_unit(pmodel); i++) {
-        pdata->test_widgets[i] = test_widget_create(obj, i, model_get_test_code(pmodel, i));
+    size_t num_tests = model_get_num_tests_in_current_unit(pmodel);
+    for (size_t i = 0; i < num_tests; i++) {
+        pdata->test_widgets[i] = test_widget_create(obj, i, model_get_test_code_from_current_unit(pmodel, i));
     }
 
     pdata->test_interface = obj;
@@ -334,7 +335,8 @@ static void update_page(model_t *pmodel, struct page_data *pdata) {
             break;
     }
 
-    for (size_t i = 0; i < model_get_num_tests_in_current_unit(pmodel); i++) {
+    size_t num_tests = model_get_num_tests_in_current_unit(pmodel);
+    for (size_t i = 0; i < num_tests; i++) {
         if (model_get_test_done_history(pmodel, i)) {
             view_common_set_checked(pdata->test_widgets[i].result_cb, 1);
 

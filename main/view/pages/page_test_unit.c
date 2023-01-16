@@ -39,7 +39,7 @@ static void *create_page(void *args, void *extra) {
 }
 
 
-static void open_page(void *args, void *data) {
+static void open_page(lv_pman_handle_t handle, void *args, void *data) {
     lv_obj_t         *btn;
     struct page_data *pdata  = data;
     model_t          *pmodel = args;
@@ -57,7 +57,7 @@ static void open_page(void *args, void *data) {
     lv_obj_set_flex_align(right_panel, LV_FLEX_ALIGN_END, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
 
     btn = view_common_icon_button_create(right_panel, &img_icon_home);
-    lv_pman_register_obj_id(btn, HOME_BTN_ID);
+    lv_pman_register_obj_id(handle, btn, HOME_BTN_ID);
 
     lv_obj_t *left_panel = lv_obj_create(cont);
     lv_obj_add_style(left_panel, (lv_style_t *)&style_panel, LV_STATE_DEFAULT);
@@ -75,7 +75,7 @@ static void open_page(void *args, void *data) {
     for (size_t i = 0; i < sizeof(test_codes) / sizeof(test_codes[0]); i++) {
         if (!model_is_test_required(test_codes[i])) {
             pdata->test_widgets[count] = test_widget_create(obj, i, test_codes[i]);
-            lv_pman_register_obj_id_and_number(pdata->test_widgets[count].obj, TOGGLE_TEST_BTN_ID, i);
+            lv_pman_register_obj_id_and_number(handle, pdata->test_widgets[count].obj, TOGGLE_TEST_BTN_ID, i);
             count++;
         }
     }

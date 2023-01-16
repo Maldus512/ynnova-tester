@@ -80,7 +80,8 @@ void configuration_init(model_t *pmodel) {
                             continue;
                         }
 
-                        tests |= 1 << json_test_code->valueint;
+                        log_info("test no %i", json_test_code->valueint);
+                        tests |= 1ULL << json_test_code->valueint;
                     }
 
                     model_add_test_unit(pmodel, json_name->valuestring, tests);

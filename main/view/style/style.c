@@ -33,6 +33,15 @@ static const lv_style_const_prop_t style_selected_props[] = {
 LV_STYLE_CONST_INIT(style_selected, style_selected_props);
 
 
+static const lv_style_const_prop_t style_toast_props[] = {
+    LV_STYLE_CONST_PAD_BOTTOM(8), 
+    LV_STYLE_CONST_PAD_TOP(8), 
+    LV_STYLE_CONST_PAD_LEFT(16), 
+    LV_STYLE_CONST_PAD_RIGHT(16), 
+};
+LV_STYLE_CONST_INIT(style_toast, style_toast_props);
+
+
 static const lv_style_const_prop_t style_scrollbar_props[] = {
     LV_STYLE_CONST_PAD_BOTTOM(8),
     LV_STYLE_CONST_PAD_TOP(8),

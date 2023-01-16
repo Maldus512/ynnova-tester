@@ -99,7 +99,7 @@ typedef struct {
     struct {
         uint64_t test_units[MAX_NUM_TEST_UNITS];
         char     test_unit_names[MAX_NUM_TEST_UNITS][TEST_UNIT_NAME_LENGTH];
-        uint16_t test_unit_index;
+        uint16_t test_unit_index;     // Selected test unit
         uint16_t num_custom_test_units;
     } config;
 
@@ -112,7 +112,7 @@ typedef struct {
         uint8_t       downloading;
         uint8_t       to_save;
 
-        size_t   test_index;
+        size_t   test_index;     // Test index in current test unit
         uint16_t test_result_history[MAX_TEST_SUITE_LENGTH];
         uint8_t  test_done_history[MAX_TEST_SUITE_LENGTH];
     } run;
@@ -120,7 +120,7 @@ typedef struct {
 
 
 void        model_init(model_t *pmodel);
-uint16_t    model_get_test_code(model_t *pmodel, size_t num);
+uint16_t    model_get_test_code_from_current_unit(model_t *pmodel, size_t num);
 uint16_t    model_get_current_test_code(model_t *pmodel);
 void        model_reset_test_sequence(model_t *pmodel);
 uint8_t     model_next_test(model_t *pmodel);

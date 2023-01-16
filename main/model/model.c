@@ -2,6 +2,7 @@
 #include <string.h>
 #include <assert.h>
 #include "model.h"
+#include "log.h"
 
 
 test_code_t test_codes[29] = {
@@ -48,7 +49,7 @@ uint16_t model_get_num_tests_in_current_unit(model_t *pmodel) {
     assert(pmodel != NULL);
     uint16_t count = 0;
 
-    for (size_t i = 0; i < sizeof(pmodel->config.test_units[0]) * 8; i++) {
+    for (size_t i = 0; i < sizeof(pmodel->config.test_units[pmodel->config.test_unit_index]) * 8; i++) {
         if (model_is_test_required(i) ||
             (pmodel->config.test_units[pmodel->config.test_unit_index] & (1ULL << i)) > 0) {
             count++;
@@ -83,24 +84,31 @@ void model_toggle_test_configured(model_t *pmodel, size_t test_unit_index, test_
 }
 
 
-uint16_t model_get_test_code(model_t *pmodel, size_t num) {
+uint16_t model_get_test_code_from_current_unit(model_t *pmodel, size_t num) {
     assert(pmodel != NULL);
     size_t count = 0;
-    size_t i     = 0;
 
-    while (count < num && i < sizeof(test_codes) / sizeof(test_codes[0])) {
+    if (num == 0 && model_is_test_configured_in_current_unit(pmodel, test_codes[0])) {
+        return test_codes[0];
+    }
+
+    size_t i = 0;
+    for (i = 0; i < sizeof(test_codes) / sizeof(test_codes[0]); i++) {
+        if (count == num && model_is_test_configured_in_current_unit(pmodel, test_codes[i])) {
+            break;
+        }
         if (model_is_test_configured_in_current_unit(pmodel, test_codes[i])) {
             count++;
         }
     }
 
-    return test_codes[count];
+    return test_codes[i];
 }
 
 
 uint16_t model_get_current_test_code(model_t *pmodel) {
     assert(pmodel != NULL);
-    return model_get_test_code(pmodel, pmodel->run.test_index);
+    return model_get_test_code_from_current_unit(pmodel, pmodel->run.test_index);
 }
 
 

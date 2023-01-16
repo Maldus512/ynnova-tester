@@ -17,6 +17,7 @@ extern const lv_style_t style_panel;
 extern const lv_style_t style_selected;
 extern const lv_style_t style_unselected;
 extern const lv_style_t style_scrollbar;
+extern const lv_style_t style_toast;
 
 
 void style_init(void);

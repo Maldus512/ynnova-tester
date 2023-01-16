@@ -5,13 +5,10 @@
 #include "controller/message.h"
 
 
-#define LV_PMAN_CONTROLLER_MSG_ID 0xFFFFFFFF
-
 #define LV_PMAN_PAGE_STACK_DEPTH 16
 
-#define LV_PMAN_EVENT_QUEUE_DEPTH 16
 
-
+//TODO: reverse the dependency
 typedef enum {
     LV_PMAN_USER_EVENT_TAG_UPDATE,
 } lv_pman_user_event_tag_t;

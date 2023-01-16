@@ -28,6 +28,8 @@ struct page_data {
     test_unit_widget_t test_unit_widgets[MAX_NUM_TEST_UNITS];
     lv_obj_t          *list_test_units;
     lv_obj_t          *btn_add;
+
+    lv_pman_handle_t handle;
 };
 
 
@@ -50,10 +52,12 @@ static void *create_page(void *args, void *extra) {
 }
 
 
-static void open_page(void *args, void *data) {
+static void open_page(lv_pman_handle_t handle, void *args, void *data) {
     lv_obj_t         *btn, *obj, *lbl;
     struct page_data *pdata  = data;
     model_t          *pmodel = args;
+
+    pdata->handle = handle;
 
     lv_obj_t *cont = lv_obj_create(lv_scr_act());
     lv_obj_set_size(cont, LV_PCT(100), LV_PCT(100));
@@ -68,7 +72,7 @@ static void open_page(void *args, void *data) {
     lv_obj_set_flex_align(right_panel, LV_FLEX_ALIGN_END, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
 
     btn = view_common_icon_button_create(right_panel, &img_icon_home);
-    lv_pman_register_obj_id(btn, HOME_BTN_ID);
+    lv_pman_register_obj_id(handle, btn, HOME_BTN_ID);
 
     lv_obj_t *left_panel = lv_obj_create(cont);
     lv_obj_add_style(left_panel, (lv_style_t *)&style_panel, LV_STATE_DEFAULT);
@@ -209,9 +213,11 @@ static void test_units_list_update(model_t *pmodel, struct page_data *pdata) {
     for (size_t i = 0; i < model_get_num_test_units(pmodel); i++) {
         pdata->test_unit_widgets[i] =
             test_unit_widget_create(pdata->list_test_units, model_get_test_unit_name(pmodel, i));
-        lv_pman_register_obj_id_and_number(pdata->test_unit_widgets[i].obj, SELECT_TEST_UNIT_BTN_ID, i);
-        lv_pman_register_obj_id_and_number(pdata->test_unit_widgets[i].delete_btn, REMOVE_TEST_UNIT_BTN_ID, i);
-        lv_pman_register_obj_id_and_number(pdata->test_unit_widgets[i].edit_btn, EDIT_TEST_UNIT_BTN_ID, i);
+        lv_pman_register_obj_id_and_number(pdata->handle, pdata->test_unit_widgets[i].obj, SELECT_TEST_UNIT_BTN_ID, i);
+        lv_pman_register_obj_id_and_number(pdata->handle, pdata->test_unit_widgets[i].delete_btn,
+                                           REMOVE_TEST_UNIT_BTN_ID, i);
+        lv_pman_register_obj_id_and_number(pdata->handle, pdata->test_unit_widgets[i].edit_btn, EDIT_TEST_UNIT_BTN_ID,
+                                           i);
     }
 
     view_common_set_disabled(pdata->test_unit_widgets[0].delete_btn, 1);
@@ -229,7 +235,7 @@ static void test_units_list_update(model_t *pmodel, struct page_data *pdata) {
     lv_label_set_text(lbl, LV_SYMBOL_PLUS);
     lv_obj_align(lbl, LV_ALIGN_RIGHT_MID, 0, 0);
 
-    lv_pman_register_obj_id(cont, ADD_TEST_UNIT_BTN_ID);
+    lv_pman_register_obj_id(pdata->handle, cont, ADD_TEST_UNIT_BTN_ID);
     pdata->btn_add = cont;
 
     if (model_get_num_test_units(pmodel) >= MAX_NUM_TEST_UNITS) {
