@@ -48,7 +48,7 @@ typedef enum {
     TEST_CODE_REQUIRED_04 = 4,
     TEST_CODE_REQUIRED_05 = 5,
     TEST_CODE_REQUIRED_06 = 6,
-    TEST_CODE_07          = 7,
+    TEST_CODE_REQUIRED_07 = 7,
     TEST_CODE_08          = 8,
     TEST_CODE_09          = 9,
     TEST_CODE_11          = 11,
@@ -70,6 +70,7 @@ typedef enum {
     TEST_CODE_55          = 55,
     TEST_CODE_57          = 57,
     TEST_CODE_58          = 58,
+    TEST_CODE_59          = 59,
     TEST_CODE_61          = 61,
     TEST_CODE_62          = 62,
 } test_code_t;
@@ -95,6 +96,13 @@ typedef enum {
 } test_result_t;
 
 
+typedef enum {
+    CYCLE_STATE_STOP = 0,
+    CYCLE_STATE_RUNNING,
+    CYCLE_STATE_PROGRAMMING,
+} cycle_state_t;
+
+
 typedef struct {
     struct {
         uint64_t test_units[MAX_NUM_TEST_UNITS];
@@ -107,6 +115,7 @@ typedef struct {
         uint16_t      last_test;
         uint8_t       communication_error;
         board_state_t board_state;
+        cycle_state_t cycle_state;
         test_state_t  test_state;
         test_result_t test_result;
         uint8_t       downloading;
@@ -142,6 +151,9 @@ uint8_t     model_is_test_configured(model_t *pmodel, size_t test_unit_index, te
 void        model_remove_test_unit(model_t *pmodel, size_t test_unit_index);
 void        model_toggle_test_configured(model_t *pmodel, size_t test_unit_index, test_code_t code);
 uint8_t     model_is_test_required(test_code_t code);
+void        model_set_test_unit_name(model_t *pmodel, size_t test_unit_index, const char *name);
+uint8_t     model_get_test_done(model_t *pmodel);
+uint8_t     model_get_test_ok(model_t *pmodel);
 
 GETTERNSETTER(last_test, run.last_test);
 GETTERNSETTER(communication_error, run.communication_error);
@@ -150,6 +162,7 @@ GETTERNSETTER(downloading, run.downloading);
 GETTERNSETTER(test_unit_index, config.test_unit_index);
 GETTERNSETTER(num_custom_test_units, config.num_custom_test_units);
 GETTERNSETTER(to_save, run.to_save);
+GETTERNSETTER(cycle_state, run.cycle_state);
 
 GETTER(test_result, run.test_result);
 GETTER(test_state, run.test_state);
@@ -157,7 +170,7 @@ GETTER(test_state, run.test_state);
 SETTER(test_index, run.test_index);
 
 
-extern test_code_t test_codes[29];
+extern test_code_t test_codes[30];
 
 
 #endif

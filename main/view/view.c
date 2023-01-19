@@ -31,13 +31,30 @@ void view_init(model_t *pmodel, void (*controller_cb)(void *, lv_pman_controller
     lv_disp_t *disp = lv_disp_drv_register(&disp_drv); /*Register the driver and save the created display objects*/
     lv_theme_default_init(disp, STYLE_PRIMARY_COLOR, lv_color_make(0x14, 0x14, 0x3C), 1, lv_font_default());
 
-    static lv_indev_drv_t indev_drv;
-    lv_indev_drv_init(&indev_drv); /*Basic initialization*/
-    indev_drv.type    = LV_INDEV_TYPE_POINTER;
-    indev_drv.read_cb = sdl_mouse_read;
+    static lv_indev_drv_t mouse_indev_drv;
+    lv_indev_drv_init(&mouse_indev_drv); /*Basic initialization*/
+    mouse_indev_drv.type    = LV_INDEV_TYPE_POINTER;
+    mouse_indev_drv.read_cb = sdl_mouse_read;
 
     static lv_indev_t *indev = NULL;
-    indev                    = lv_indev_drv_register(&indev_drv);
+    indev                    = lv_indev_drv_register(&mouse_indev_drv);
+
+    static lv_indev_drv_t keyboard_indev_drv;
+    lv_indev_drv_init(&keyboard_indev_drv);
+    keyboard_indev_drv.type    = LV_INDEV_TYPE_KEYPAD;
+    keyboard_indev_drv.read_cb = sdl_keyboard_read;
+    lv_indev_t *kb_indev       = lv_indev_drv_register(&keyboard_indev_drv);
+
+    static lv_indev_drv_t scroll_indev_drv;
+    lv_indev_drv_init(&scroll_indev_drv);
+    scroll_indev_drv.type        = LV_INDEV_TYPE_ENCODER;
+    scroll_indev_drv.read_cb     = sdl_mousewheel_read;
+    lv_indev_t *mousewheel_indev = lv_indev_drv_register(&scroll_indev_drv);
+
+    lv_group_t *g = lv_group_create();
+    lv_group_set_default(g);
+    lv_indev_set_group(kb_indev, g);
+    lv_indev_set_group(mousewheel_indev, g);
 
     lv_pman_init(&page_manager, pmodel, indev, controller_cb);
 }

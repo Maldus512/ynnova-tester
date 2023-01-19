@@ -21,7 +21,7 @@ void controller_init(model_t *pmodel) {
 
     machine_reset_test();
 
-    view_change_page(pmodel, page_main);
+    view_change_page(pmodel, page_initial_choice);
 }
 
 
@@ -53,12 +53,20 @@ void controller_manage_message(void *args, lv_pman_controller_msg_t msg) {
         case LV_PMAN_CONTROLLER_MSG_TAG_RESTART_COMMUNICATION:
             machine_restart_communication();
             break;
+
+        case LV_PMAN_CONTROLLER_MSG_TAG_START_TEST_UNIT:
+            machine_start_test(model_get_current_test_code(pmodel));
+            model_set_cycle_state(pmodel, CYCLE_STATE_RUNNING);
+            view_simple_event(LV_PMAN_USER_EVENT_TAG_UPDATE);
+            break;
     }
 }
 
 
 void controller_manage(model_t *pmodel) {
-    static unsigned long       status_ts   = 0;
+    static uint16_t      old_test_result = TEST_RESULT_OK;
+    static unsigned long status_ts       = 0;
+
     machine_response_message_t machine_msg = {0};
 
     if (machine_get_response(&machine_msg) > 0) {
@@ -66,6 +74,7 @@ void controller_manage(model_t *pmodel) {
             case MACHINE_RESPONSE_MESSAGE_TAG_ERROR:
                 log_error("Machine message error");
                 if (model_set_communication_error(pmodel, 1)) {
+                    model_set_cycle_state(pmodel, CYCLE_STATE_STOP);
                     view_simple_event(LV_PMAN_USER_EVENT_TAG_UPDATE);
                 }
                 break;
@@ -76,6 +85,24 @@ void controller_manage(model_t *pmodel) {
                                                 machine_msg.test_state, machine_msg.test_result);
 
                 if (update) {
+                    if (old_test_result != model_get_test_result(pmodel)) {
+                        machine_test_error();
+                    }
+
+                    if (model_get_cycle_state(pmodel) == CYCLE_STATE_RUNNING &&
+                        model_get_test_state(pmodel) == TEST_STATE_DONE) {
+                        if (model_get_test_result(pmodel) != TEST_RESULT_OK) {
+                            model_set_cycle_state(pmodel, CYCLE_STATE_STOP);
+                        } else {
+                            if (model_next_test(pmodel) == 0) {
+                                machine_start_test(model_get_current_test_code(pmodel));
+                            } else {
+                                machine_test_done();
+                                model_set_cycle_state(pmodel, CYCLE_STATE_STOP);
+                            }
+                        }
+                    }
+
                     view_simple_event(LV_PMAN_USER_EVENT_TAG_UPDATE);
                 }
                 break;

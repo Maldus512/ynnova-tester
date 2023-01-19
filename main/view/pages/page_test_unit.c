@@ -12,6 +12,8 @@ LV_IMG_DECLARE(img_icon_home);
 enum {
     HOME_BTN_ID,
     TOGGLE_TEST_BTN_ID,
+    KEYBOARD_ID,
+    TEXTAREA_ID,
 };
 
 typedef struct {
@@ -22,11 +24,13 @@ typedef struct {
 struct page_data {
     size_t        test_unit_index;
     test_widget_t test_widgets[MAX_TEST_SUITE_LENGTH];
+    lv_obj_t     *textarea;
+    lv_obj_t     *keyboard;
 };
 
 
 static void          update_page(model_t *pmodel, struct page_data *pdata);
-static test_widget_t test_widget_create(lv_obj_t *root, size_t num, uint16_t code);
+static test_widget_t test_widget_create(lv_obj_t *root, uint16_t code);
 
 
 static void *create_page(void *args, void *extra) {
@@ -59,10 +63,28 @@ static void open_page(lv_pman_handle_t handle, void *args, void *data) {
     btn = view_common_icon_button_create(right_panel, &img_icon_home);
     lv_pman_register_obj_id(handle, btn, HOME_BTN_ID);
 
+    lv_obj_t *textarea = lv_textarea_create(lv_scr_act());
+    lv_obj_set_size(textarea, MAIN_PANEL_WIDTH, 64);
+    lv_obj_align(textarea, LV_ALIGN_TOP_LEFT, 4, 8);
+    lv_textarea_set_text(textarea, model_get_test_unit_name(pmodel, pdata->test_unit_index));
+    lv_textarea_set_max_length(textarea, TEST_UNIT_NAME_LENGTH - 1);
+    lv_textarea_set_one_line(textarea, 1);
+    lv_pman_register_obj_id(handle, textarea, TEXTAREA_ID);
+    lv_obj_add_flag(textarea, LV_OBJ_FLAG_CLICKABLE);
+    lv_group_focus_obj(textarea);
+    pdata->textarea = textarea;
+
+    lv_obj_t *keyboard = lv_keyboard_create(lv_scr_act());
+    lv_obj_set_size(keyboard, LV_HOR_RES, LV_VER_RES - 64 - 16);
+    lv_keyboard_set_textarea(keyboard, textarea);
+    lv_pman_register_obj_id(handle, keyboard, KEYBOARD_ID);
+    view_common_set_hidden(keyboard, 1);
+    pdata->keyboard = keyboard;
+
     lv_obj_t *left_panel = lv_obj_create(cont);
     lv_obj_add_style(left_panel, (lv_style_t *)&style_panel, LV_STATE_DEFAULT);
-    lv_obj_set_size(left_panel, LV_HOR_RES - 132, LV_PCT(100));
-    lv_obj_align(left_panel, LV_ALIGN_TOP_LEFT, 0, 0);
+    lv_obj_set_size(left_panel, MAIN_PANEL_WIDTH, LV_VER_RES - 64 - 16);
+    lv_obj_align(left_panel, LV_ALIGN_BOTTOM_LEFT, 0, 0);
 
     lv_obj_t *obj = lv_obj_create(left_panel);
     lv_obj_set_size(obj, LV_PCT(100), LV_PCT(100));
@@ -74,7 +96,7 @@ static void open_page(lv_pman_handle_t handle, void *args, void *data) {
     size_t count = 0;
     for (size_t i = 0; i < sizeof(test_codes) / sizeof(test_codes[0]); i++) {
         if (!model_is_test_required(test_codes[i])) {
-            pdata->test_widgets[count] = test_widget_create(obj, i, test_codes[i]);
+            pdata->test_widgets[count] = test_widget_create(obj, test_codes[i]);
             lv_pman_register_obj_id_and_number(handle, pdata->test_widgets[count].obj, TOGGLE_TEST_BTN_ID, i);
             count++;
         }
@@ -101,10 +123,43 @@ static lv_pman_msg_t process_page_event(void *args, void *data, lv_pman_event_t 
                             msg.vmsg.tag = LV_PMAN_VIEW_MSG_TAG_BACK;
                             break;
 
+                        case TEXTAREA_ID:
+                            view_common_set_hidden(pdata->keyboard, 0);
+                            break;
+
                         case TOGGLE_TEST_BTN_ID:
                             model_set_to_save(pmodel, 1);
                             model_toggle_test_configured(pmodel, pdata->test_unit_index, test_codes[event.lvgl.number]);
                             update_page(pmodel, pdata);
+                            break;
+                    }
+                    break;
+                }
+
+                case LV_EVENT_VALUE_CHANGED: {
+                    switch (event.lvgl.id) {
+                        case TEXTAREA_ID:
+                            model_set_to_save(pmodel, 1);
+                            model_set_test_unit_name(pmodel, pdata->test_unit_index,
+                                                     lv_textarea_get_text(pdata->textarea));
+                            break;
+                    }
+                    break;
+                }
+
+                case LV_EVENT_CANCEL: {
+                    switch (event.lvgl.id) {
+                        case KEYBOARD_ID:
+                            view_common_set_hidden(pdata->keyboard, 1);
+                            break;
+                    }
+                    break;
+                }
+
+                case LV_EVENT_READY: {
+                    switch (event.lvgl.id) {
+                        case KEYBOARD_ID:
+                            view_common_set_hidden(pdata->keyboard, 1);
                             break;
                     }
                     break;
@@ -142,14 +197,14 @@ static void update_page(model_t *pmodel, struct page_data *pdata) {
 }
 
 
-static test_widget_t test_widget_create(lv_obj_t *root, size_t num, uint16_t code) {
+static test_widget_t test_widget_create(lv_obj_t *root, uint16_t code) {
     lv_obj_t *cont = lv_btn_create(root);
     lv_obj_set_size(cont, LV_PCT(95), 96);
     lv_obj_add_style(cont, (lv_style_t *)&style_unselected, LV_STATE_DEFAULT);
 
     lv_obj_t *lbl = lv_label_create(cont);
     lv_obj_align(lbl, LV_ALIGN_LEFT_MID, 0, 0);
-    lv_label_set_text_fmt(lbl, "%3zu: %i", num + 1, code);
+    lv_label_set_text_fmt(lbl, "%i", code);
 
     lv_obj_t *cb = lv_checkbox_create(cont);
     lv_obj_clear_flag(cb, LV_OBJ_FLAG_CLICKABLE);

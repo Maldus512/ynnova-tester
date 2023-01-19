@@ -33,11 +33,18 @@ static const lv_style_const_prop_t style_selected_props[] = {
 LV_STYLE_CONST_INIT(style_selected, style_selected_props);
 
 
+static const lv_style_const_prop_t style_done_props[] = {
+    LV_STYLE_CONST_BORDER_OPA(LV_OPA_COVER),
+    LV_STYLE_CONST_BORDER_WIDTH(2),
+};
+LV_STYLE_CONST_INIT(style_done, style_done_props);
+
+
 static const lv_style_const_prop_t style_toast_props[] = {
-    LV_STYLE_CONST_PAD_BOTTOM(8), 
-    LV_STYLE_CONST_PAD_TOP(8), 
-    LV_STYLE_CONST_PAD_LEFT(16), 
-    LV_STYLE_CONST_PAD_RIGHT(16), 
+    LV_STYLE_CONST_PAD_BOTTOM(8),
+    LV_STYLE_CONST_PAD_TOP(8),
+    LV_STYLE_CONST_PAD_LEFT(16),
+    LV_STYLE_CONST_PAD_RIGHT(16),
 };
 LV_STYLE_CONST_INIT(style_toast, style_toast_props);
 

@@ -39,7 +39,12 @@
 #define INPUT_REGISTER_NEEDLE_BED_STATE   3
 #define INPUT_REGISTER_BOARD_PRESENT      4
 
-#define HOLDING_REGISTER_TEST 0
+
+#define HOLDING_REGISTER_TEST   0
+#define HOLDING_REGISTER_BUZZER 1
+
+#define BUZZER_TEST_DONE_SOUND 1
+#define BUZZER_ERROR_SOUND     2
 
 #define MINION_ADDRESS 1
 
@@ -124,6 +129,16 @@ void machine_start_test(uint16_t code) {
 
 void machine_reset_test(void) {
     send_write_holding_register(HOLDING_REGISTER_TEST, 0xFF);
+}
+
+
+void machine_test_done(void) {
+    send_write_holding_register(HOLDING_REGISTER_BUZZER, BUZZER_TEST_DONE_SOUND);
+}
+
+
+void machine_test_error(void) {
+    send_write_holding_register(HOLDING_REGISTER_BUZZER, BUZZER_ERROR_SOUND);
 }
 
 
@@ -336,8 +351,6 @@ static int task_manage_message(machine_message_t message, ModbusMaster *master, 
                 }
 
                 response.test_result = registers[2];
-
-                response.board_state = BOARD_STATE_READY;
 
                 send_response(&response);
             }

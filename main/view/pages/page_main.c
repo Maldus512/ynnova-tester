@@ -6,14 +6,15 @@
 #include "log.h"
 
 
-#define LOG_PANEL_HEIGHT      116
-#define PAGE_LOG(format, ...) log_info(format, ##__VA_ARGS__)
+#define TEST_CONT_COLLAPSED_HEIGHT 80
+#define TEST_CONT_EXTENDED_HEIGHT  (TEST_CONT_COLLAPSED_HEIGHT + 56)
+#define LOG_PANEL_HEIGHT           116
+#define PAGE_LOG(format, ...)      log_info(format, ##__VA_ARGS__)
 
 
 LV_IMG_DECLARE(img_icon_connection);
 LV_IMG_DECLARE(img_icon_settings);
 LV_IMG_DECLARE(img_icon_play);
-LV_IMG_DECLARE(img_icon_pause);
 LV_IMG_DECLARE(img_icon_reset);
 LV_IMG_DECLARE(img_icon_download);
 
@@ -21,9 +22,10 @@ LV_IMG_DECLARE(img_icon_download);
 enum {
     CONNECTION_BTN_ID,
     SETTINGS_BTN_ID,
-    PLAY_PAUSE_BTN_ID,
+    PLAY_BTN_ID,
     RESET_BTN_ID,
     DOWNLOAD_BTN_ID,
+    SKIP_BTN_ID,
 };
 
 
@@ -31,21 +33,18 @@ typedef struct {
     lv_obj_t *obj;
     lv_obj_t *result_cb;
     lv_obj_t *spinner;
+    lv_obj_t *lbl;
+    lv_obj_t *lbl_err;
+    lv_obj_t *btn_err;
 } test_widget_t;
-
-
-typedef enum {
-    PAGE_STATE_STARTED,
-    PAGE_STATE_RUNNING,
-    PAGE_STATE_PAUSED,
-} page_state_t;
 
 
 struct page_data {
     lv_obj_t *btn_connection;
-    lv_obj_t *btn_play_pause;
+    lv_obj_t *btn_play;
     lv_obj_t *btn_reset;
     lv_obj_t *btn_download;
+    lv_obj_t *lbl_status;
 
     lv_obj_t *test_interface;
     lv_obj_t *board_missing_msg;
@@ -53,23 +52,20 @@ struct page_data {
 
     test_widget_t test_widgets[MAX_TEST_SUITE_LENGTH];
 
-    uint8_t      pending_request;
     test_state_t previous_test_state;
     uint16_t     previous_test_code;
-    page_state_t state;
 };
 
 
-static void                     update_page(model_t *pmodel, struct page_data *pdata);
-static test_widget_t            test_widget_create(lv_obj_t *root, size_t num, uint16_t code);
-static lv_pman_controller_msg_t next_test(model_t *pmodel, struct page_data *pdata);
+static void          update_page(model_t *pmodel, struct page_data *pdata);
+static test_widget_t test_widget_create(lv_obj_t *root, uint16_t code);
 
 
 static void *create_page(void *args, void *extra) {
+    (void)args;
+    (void)extra;
     struct page_data *pdata = lv_mem_alloc(sizeof(struct page_data));
     assert(pdata != NULL);
-
-    pdata->pending_request = 0;
 
     return pdata;
 }
@@ -80,12 +76,11 @@ static void open_page(lv_pman_handle_t handle, void *args, void *data) {
     struct page_data *pdata  = data;
     model_t          *pmodel = args;
 
-    pdata->state = PAGE_STATE_PAUSED;
-
     lv_obj_t *cont = lv_obj_create(lv_scr_act());
     lv_obj_set_size(cont, LV_PCT(100), LV_PCT(100));
     lv_obj_add_style(cont, (lv_style_t *)&style_transparent_cont, LV_STATE_DEFAULT);
     lv_obj_set_style_pad_all(cont, 4, LV_STATE_DEFAULT);
+    lv_obj_clear_flag(cont, LV_OBJ_FLAG_SCROLLABLE);
 
     lv_obj_t *right_panel = lv_obj_create(cont);
     lv_obj_add_style(right_panel, (lv_style_t *)&style_panel, LV_STATE_DEFAULT);
@@ -105,8 +100,8 @@ static void open_page(lv_pman_handle_t handle, void *args, void *data) {
     lv_pman_register_obj_id(handle, btn, SETTINGS_BTN_ID);
 
     btn = view_common_icon_button_create(right_panel, &img_icon_play);
-    lv_pman_register_obj_id(handle, btn, PLAY_PAUSE_BTN_ID);
-    pdata->btn_play_pause = btn;
+    lv_pman_register_obj_id(handle, btn, PLAY_BTN_ID);
+    pdata->btn_play = btn;
 
     btn = view_common_icon_button_create(right_panel, &img_icon_reset);
     lv_pman_register_obj_id(handle, btn, RESET_BTN_ID);
@@ -119,9 +114,8 @@ static void open_page(lv_pman_handle_t handle, void *args, void *data) {
 
     lv_obj_t *left_panel = lv_obj_create(cont);
     lv_obj_add_style(left_panel, (lv_style_t *)&style_panel, LV_STATE_DEFAULT);
-    lv_obj_set_size(left_panel, LV_HOR_RES - 132, LV_PCT(100));
+    lv_obj_set_size(left_panel, MAIN_PANEL_WIDTH, LV_VER_RES - 64);
     lv_obj_align(left_panel, LV_ALIGN_TOP_LEFT, 0, 0);
-
 
     obj = lv_obj_create(left_panel);
     lv_obj_set_size(obj, LV_PCT(100), LV_PCT(100));
@@ -133,7 +127,8 @@ static void open_page(lv_pman_handle_t handle, void *args, void *data) {
 
     size_t num_tests = model_get_num_tests_in_current_unit(pmodel);
     for (size_t i = 0; i < num_tests; i++) {
-        pdata->test_widgets[i] = test_widget_create(obj, i, model_get_test_code_from_current_unit(pmodel, i));
+        pdata->test_widgets[i] = test_widget_create(obj, model_get_test_code_from_current_unit(pmodel, i));
+        lv_pman_register_obj_id(handle, pdata->test_widgets[i].btn_err, SKIP_BTN_ID);
     }
 
     pdata->test_interface = obj;
@@ -166,6 +161,19 @@ static void open_page(lv_pman_handle_t handle, void *args, void *data) {
 
     pdata->board_open_msg = obj;
 
+
+    lv_obj_t *status_panel = lv_obj_create(cont);
+    lv_obj_clear_flag(status_panel, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_add_style(status_panel, (lv_style_t *)&style_panel, LV_STATE_DEFAULT);
+    lv_obj_set_size(status_panel, MAIN_PANEL_WIDTH + 16, 64);
+    lv_obj_align(status_panel, LV_ALIGN_BOTTOM_LEFT, -16, 16);
+
+    lbl = lv_label_create(status_panel);
+    lv_label_set_long_mode(lbl, LV_LABEL_LONG_SCROLL_CIRCULAR);
+    lv_obj_set_width(lbl, MAIN_PANEL_WIDTH);
+    lv_obj_align(lbl, LV_ALIGN_TOP_LEFT, 16, -8);
+    pdata->lbl_status = lbl;
+
     update_page(pmodel, pdata);
 }
 
@@ -183,24 +191,24 @@ static lv_pman_msg_t process_page_event(void *args, void *data, lv_pman_event_t 
             switch (event.lvgl.event) {
                 case LV_EVENT_CLICKED: {
                     switch (event.lvgl.id) {
-                        case PLAY_PAUSE_BTN_ID:
-                            switch (pdata->state) {
-                                case PAGE_STATE_PAUSED:
-                                    pdata->state = PAGE_STATE_STARTED;
+                        case SKIP_BTN_ID:
+                            model_next_test(pmodel);
+                            update_page(pmodel, pdata);
+                            break;
 
+                        case PLAY_BTN_ID:
+                            switch (model_get_cycle_state(pmodel)) {
+                                case CYCLE_STATE_STOP:
                                     if (model_is_test_sequence_done(pmodel)) {
                                         model_reset_test_sequence(pmodel);
                                     }
 
-                                    msg.cmsg = next_test(pmodel, pdata);
+                                    msg.cmsg.tag = LV_PMAN_CONTROLLER_MSG_TAG_START_TEST_UNIT;
                                     break;
 
                                 default:
-                                    pdata->state = PAGE_STATE_PAUSED;
                                     break;
                             }
-
-                            update_page(pmodel, pdata);
                             break;
 
                         case RESET_BTN_ID:
@@ -237,28 +245,11 @@ static lv_pman_msg_t process_page_event(void *args, void *data, lv_pman_event_t 
                     if (pdata->previous_test_state != model_get_test_state(pmodel) ||
                         pdata->previous_test_code != model_get_last_test(pmodel)) {
 
-                        pdata->pending_request = 0;
-
                         pdata->previous_test_state = model_get_test_state(pmodel);
                         pdata->previous_test_code  = model_get_last_test(pmodel);
                     }
 
-                    if (pdata->state != PAGE_STATE_PAUSED) {
-                        if (model_get_test_state(pmodel) == TEST_STATE_DONE && !pdata->pending_request) {
-                            if (model_get_test_result(pmodel) != TEST_RESULT_OK) {
-                                pdata->state = PAGE_STATE_PAUSED;
-                            } else {
-                                if (model_next_test(pmodel) == 0) {
-                                    msg.cmsg = next_test(pmodel, pdata);
-                                } else {
-                                    pdata->state = PAGE_STATE_PAUSED;
-                                }
-                            }
-
-                            lv_obj_scroll_to_view(pdata->test_widgets[model_get_test_index(pmodel)].obj, LV_ANIM_ON);
-                        }
-                    }
-
+                    lv_obj_scroll_to_view(pdata->test_widgets[model_get_test_index(pmodel)].obj, LV_ANIM_ON);
                     update_page(pmodel, pdata);
                     break;
             }
@@ -270,27 +261,31 @@ static lv_pman_msg_t process_page_event(void *args, void *data, lv_pman_event_t 
 }
 
 
-static lv_pman_controller_msg_t next_test(model_t *pmodel, struct page_data *pdata) {
-    lv_pman_controller_msg_t msg = {.tag = LV_PMAN_CONTROLLER_MSG_TAG_NONE};
-
-    msg.tag                = LV_PMAN_CONTROLLER_MSG_TAG_START_TEST;
-    msg.test               = model_get_current_test_code(pmodel);
-    pdata->pending_request = 1;
-
-    PAGE_LOG("Inizio test numero %i, codice %i", model_get_test_index(pmodel), msg.test);
-
-    return msg;
-}
-
-
-static test_widget_t test_widget_create(lv_obj_t *root, size_t num, uint16_t code) {
+static test_widget_t test_widget_create(lv_obj_t *root, uint16_t code) {
     lv_obj_t *cont = lv_btn_create(root);
-    lv_obj_set_size(cont, LV_PCT(95), 96);
+    lv_obj_clear_flag(cont, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_clear_flag(cont, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_set_size(cont, LV_PCT(95), TEST_CONT_COLLAPSED_HEIGHT);
     lv_obj_add_style(cont, (lv_style_t *)&style_unselected, LV_STATE_DEFAULT);
 
     lv_obj_t *lbl = lv_label_create(cont);
+    lv_label_set_long_mode(lbl, LV_LABEL_LONG_SCROLL_CIRCULAR);
+    lv_obj_set_width(lbl, LV_PCT(80));
     lv_obj_align(lbl, LV_ALIGN_LEFT_MID, 0, 0);
-    lv_label_set_text_fmt(lbl, "%3zu: %i", num + 1, code);
+    lv_label_set_text_fmt(lbl, "%i", code);
+
+    lv_obj_t *lbl_err = lv_label_create(cont);
+    lv_obj_set_width(lbl_err, LV_PCT(80));
+    lv_obj_align(lbl_err, LV_ALIGN_BOTTOM_LEFT, 0, 0);
+    lv_obj_set_style_text_color(lbl_err, STYLE_RED, LV_STATE_DEFAULT);
+
+    lv_obj_t *btn_err = lv_btn_create(cont);
+    lv_obj_t *btn_lbl = lv_label_create(btn_err);
+    lv_obj_set_size(btn_err, 128, 48);
+    lv_obj_set_style_bg_color(btn_err, STYLE_RED, LV_STATE_DEFAULT);
+    lv_label_set_text(btn_lbl, "Salta");
+    lv_obj_center(btn_lbl);
+    lv_obj_align(btn_err, LV_ALIGN_BOTTOM_RIGHT, 0, 0);
 
     lv_obj_t *cb = lv_checkbox_create(cont);
     lv_obj_clear_flag(cb, LV_OBJ_FLAG_CLICKABLE);
@@ -304,7 +299,14 @@ static test_widget_t test_widget_create(lv_obj_t *root, size_t num, uint16_t cod
     lv_obj_set_size(spinner, 56, 56);
     lv_obj_align_to(spinner, cb, LV_ALIGN_OUT_LEFT_MID, -32, 0);
 
-    return (test_widget_t){.obj = cont, .result_cb = cb, .spinner = spinner};
+    return (test_widget_t){
+        .obj       = cont,
+        .result_cb = cb,
+        .spinner   = spinner,
+        .lbl_err   = lbl_err,
+        .lbl       = lbl,
+        .btn_err   = btn_err,
+    };
 }
 
 
@@ -312,8 +314,9 @@ static void update_page(model_t *pmodel, struct page_data *pdata) {
     lv_obj_set_style_img_recolor(lv_obj_get_child(pdata->btn_connection, 0),
                                  model_get_communication_error(pmodel) ? STYLE_RED : STYLE_FG_COLOR, LV_STATE_DEFAULT);
 
-    view_common_set_disabled(pdata->btn_reset, pdata->state != PAGE_STATE_PAUSED || model_get_downloading(pmodel));
-    view_common_set_disabled(pdata->btn_download, pdata->state != PAGE_STATE_PAUSED || model_get_downloading(pmodel));
+    view_common_set_disabled(pdata->btn_play, model_get_cycle_state(pmodel) != CYCLE_STATE_STOP);
+    view_common_set_disabled(pdata->btn_reset, model_get_cycle_state(pmodel) != CYCLE_STATE_STOP);
+    view_common_set_disabled(pdata->btn_download, model_get_cycle_state(pmodel) != CYCLE_STATE_STOP);
 
     switch (model_get_board_state(pmodel)) {
         case BOARD_STATE_ABSENT:
@@ -342,36 +345,61 @@ static void update_page(model_t *pmodel, struct page_data *pdata) {
 
             switch (model_get_test_result_history(pmodel, i)) {
                 case TEST_RESULT_OK:
+                    lv_obj_set_height(pdata->test_widgets[i].obj, TEST_CONT_COLLAPSED_HEIGHT);
+                    lv_obj_align(pdata->test_widgets[i].lbl, LV_ALIGN_LEFT_MID, 0, 0);
+                    lv_obj_align(pdata->test_widgets[i].result_cb, LV_ALIGN_RIGHT_MID, 0, 0);
+                    view_common_set_hidden(pdata->test_widgets[i].lbl_err, 1);
+                    view_common_set_hidden(pdata->test_widgets[i].btn_err, 1);
+                    lv_obj_set_style_border_color(pdata->test_widgets[i].obj, STYLE_GREEN, LV_STATE_DEFAULT);
+                    lv_obj_set_style_text_color(pdata->test_widgets[i].lbl, STYLE_GREEN, LV_STATE_DEFAULT);
                     lv_obj_set_style_bg_img_src(pdata->test_widgets[i].result_cb, LV_SYMBOL_OK,
                                                 LV_STATE_CHECKED | LV_PART_INDICATOR);
                     break;
 
                 default:
+                    lv_obj_set_height(pdata->test_widgets[i].obj, TEST_CONT_EXTENDED_HEIGHT);
+                    lv_obj_align(pdata->test_widgets[i].lbl, LV_ALIGN_TOP_LEFT, 0, 0);
+                    lv_obj_align(pdata->test_widgets[i].result_cb, LV_ALIGN_TOP_RIGHT, 0, 0);
+                    view_common_set_hidden(pdata->test_widgets[i].lbl_err, 0);
+                    view_common_set_hidden(pdata->test_widgets[i].btn_err, model_get_test_index(pmodel) != i);
+                    lv_label_set_text_fmt(pdata->test_widgets[i].lbl_err,
+                                          "Errore %i: ", model_get_test_result_history(pmodel, i));
+                    lv_obj_set_style_text_color(pdata->test_widgets[i].lbl, STYLE_RED, LV_STATE_DEFAULT);
+                    lv_obj_set_style_border_color(pdata->test_widgets[i].obj, STYLE_RED, LV_STATE_DEFAULT);
                     lv_obj_set_style_bg_img_src(pdata->test_widgets[i].result_cb, LV_SYMBOL_CLOSE,
                                                 LV_STATE_CHECKED | LV_PART_INDICATOR);
+
+                    if (model_is_test_required(model_get_test_code_from_current_unit(pmodel, i)) ||
+                        i == num_tests - 1) {
+                        view_common_set_disabled(pdata->test_widgets[i].btn_err, 1);
+                    } else {
+                        view_common_set_disabled(pdata->test_widgets[i].btn_err, 0);
+                    }
                     break;
             }
         } else {
+            lv_obj_set_height(pdata->test_widgets[i].obj, TEST_CONT_COLLAPSED_HEIGHT);
+            view_common_set_hidden(pdata->test_widgets[i].lbl_err, 1);
+            view_common_set_hidden(pdata->test_widgets[i].btn_err, 1);
             view_common_set_checked(pdata->test_widgets[i].result_cb, 0);
         }
 
         if (model_get_test_index(pmodel) == i) {
-            lv_obj_add_style(pdata->test_widgets[i].obj, (lv_style_t *)&style_selected, LV_STATE_DEFAULT);
+            lv_obj_set_style_border_opa(pdata->test_widgets[i].obj, LV_OPA_COVER, LV_STATE_DEFAULT);
+        } else if (model_get_test_done_history(pmodel, i)) {
+            lv_obj_set_style_border_width(pdata->test_widgets[i].obj, 2, LV_STATE_DEFAULT);
         } else {
-            lv_obj_remove_style(pdata->test_widgets[i].obj, (lv_style_t *)&style_selected, LV_STATE_DEFAULT);
+            lv_obj_set_style_border_opa(pdata->test_widgets[i].obj, LV_OPA_TRANSP, LV_STATE_DEFAULT);
         }
 
         if (model_get_test_index(pmodel) == i) {
             switch (model_get_test_state(pmodel)) {
                 case TEST_STATE_STARTING:
                 case TEST_STATE_IN_PROGRESS:
-                    view_common_set_disabled(pdata->btn_play_pause, 1);
                     view_common_set_hidden(pdata->test_widgets[i].spinner, 0);
                     break;
 
                 default:
-                    view_common_set_disabled(pdata->btn_play_pause,
-                                             model_get_communication_error(pmodel) || model_get_downloading(pmodel));
                     view_common_set_hidden(pdata->test_widgets[i].spinner, 1);
                     break;
             }
@@ -380,8 +408,35 @@ static void update_page(model_t *pmodel, struct page_data *pdata) {
         }
     }
 
-    lv_img_set_src(lv_obj_get_child(pdata->btn_play_pause, 0),
-                   pdata->state == PAGE_STATE_PAUSED ? &img_icon_play : &img_icon_pause);
+    switch (model_get_cycle_state(pmodel)) {
+        case CYCLE_STATE_STOP:
+            if (model_get_test_index(pmodel) == 0 && !model_get_test_done_history(pmodel, 0)) {
+                lv_obj_set_style_text_color(pdata->lbl_status, STYLE_WHITE, LV_STATE_DEFAULT);
+                lv_label_set_text(pdata->lbl_status, "Pronto all'esecuzione");
+            } else if (model_get_test_done(pmodel)) {
+                if (model_get_test_ok(pmodel)) {
+                    lv_obj_set_style_text_color(pdata->lbl_status, STYLE_GREEN, LV_STATE_DEFAULT);
+                    lv_label_set_text(pdata->lbl_status, "Test concluso con successo");
+                } else {
+                    lv_obj_set_style_text_color(pdata->lbl_status, STYLE_RED, LV_STATE_DEFAULT);
+                    lv_label_set_text(pdata->lbl_status, "Errori durante il test");
+                }
+            } else {
+                lv_obj_set_style_text_color(pdata->lbl_status, STYLE_WHITE, LV_STATE_DEFAULT);
+                lv_label_set_text(pdata->lbl_status, "Test interrotto");
+            }
+            break;
+
+        case CYCLE_STATE_RUNNING:
+            lv_obj_set_style_text_color(pdata->lbl_status, STYLE_WHITE, LV_STATE_DEFAULT);
+            lv_label_set_text(pdata->lbl_status, "Test in corso");
+            break;
+
+        case CYCLE_STATE_PROGRAMMING:
+            lv_obj_set_style_text_color(pdata->lbl_status, STYLE_WHITE, LV_STATE_DEFAULT);
+            lv_label_set_text(pdata->lbl_status, "Programmazione in corso");
+            break;
+    }
 }
 
 

@@ -7,10 +7,12 @@
 
 
 LV_IMG_DECLARE(img_icon_home);
+LV_IMG_DECLARE(img_search);
 
 
 enum {
     HOME_BTN_ID,
+    SEARCH_BTN_ID,
     SELECT_TEST_UNIT_BTN_ID,
     ADD_TEST_UNIT_BTN_ID,
     REMOVE_TEST_UNIT_BTN_ID,
@@ -53,7 +55,7 @@ static void *create_page(void *args, void *extra) {
 
 
 static void open_page(lv_pman_handle_t handle, void *args, void *data) {
-    lv_obj_t         *btn, *obj, *lbl;
+    lv_obj_t         *btn, *obj;
     struct page_data *pdata  = data;
     model_t          *pmodel = args;
 
@@ -74,9 +76,12 @@ static void open_page(lv_pman_handle_t handle, void *args, void *data) {
     btn = view_common_icon_button_create(right_panel, &img_icon_home);
     lv_pman_register_obj_id(handle, btn, HOME_BTN_ID);
 
+    btn = view_common_icon_button_create(right_panel, &img_search);
+    lv_pman_register_obj_id(handle, btn, SEARCH_BTN_ID);
+
     lv_obj_t *left_panel = lv_obj_create(cont);
     lv_obj_add_style(left_panel, (lv_style_t *)&style_panel, LV_STATE_DEFAULT);
-    lv_obj_set_size(left_panel, LV_HOR_RES - 132, LV_PCT(100));
+    lv_obj_set_size(left_panel, MAIN_PANEL_WIDTH, LV_PCT(100));
     lv_obj_align(left_panel, LV_ALIGN_TOP_LEFT, 0, 0);
 
 
@@ -114,6 +119,11 @@ static lv_pman_msg_t process_page_event(void *args, void *data, lv_pman_event_t 
                                 model_set_to_save(pmodel, 0);
                                 msg.cmsg.tag = LV_PMAN_CONTROLLER_MSG_TAG_SAVE;
                             }
+                            break;
+
+                        case SEARCH_BTN_ID:
+                            msg.vmsg.tag  = LV_PMAN_VIEW_MSG_TAG_CHANGE_PAGE;
+                            msg.vmsg.page = &page_initial_choice;
                             break;
 
                         case EDIT_TEST_UNIT_BTN_ID:
@@ -194,7 +204,7 @@ static test_unit_widget_t test_unit_widget_create(lv_obj_t *root, const char *na
     lbl = lv_label_create(del_btn);
     lv_label_set_text(lbl, LV_SYMBOL_CLOSE);
     lv_obj_center(lbl);
-    lv_obj_align(del_btn, LV_ALIGN_RIGHT_MID, -64, 0);
+    lv_obj_align(del_btn, LV_ALIGN_RIGHT_MID, -56, 0);
 
     lv_obj_t *edit_btn = lv_btn_create(cont);
     lv_obj_set_size(edit_btn, 48, 48);

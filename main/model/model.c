@@ -5,13 +5,13 @@
 #include "log.h"
 
 
-test_code_t test_codes[29] = {
+test_code_t test_codes[30] = {
     TEST_CODE_REQUIRED_02, TEST_CODE_REQUIRED_03, TEST_CODE_REQUIRED_04, TEST_CODE_REQUIRED_05, TEST_CODE_REQUIRED_06,
-    TEST_CODE_07,          TEST_CODE_08,          TEST_CODE_09,          TEST_CODE_11,          TEST_CODE_13,
+    TEST_CODE_REQUIRED_07, TEST_CODE_08,          TEST_CODE_09,          TEST_CODE_11,          TEST_CODE_13,
     TEST_CODE_15,          TEST_CODE_17,          TEST_CODE_19,          TEST_CODE_20,          TEST_CODE_21,
     TEST_CODE_24,          TEST_CODE_27,          TEST_CODE_35,          TEST_CODE_43,          TEST_CODE_45,
     TEST_CODE_47,          TEST_CODE_49,          TEST_CODE_51,          TEST_CODE_53,          TEST_CODE_55,
-    TEST_CODE_57,          TEST_CODE_58,          TEST_CODE_61,          TEST_CODE_62,
+    TEST_CODE_57,          TEST_CODE_58,          TEST_CODE_59,          TEST_CODE_61,          TEST_CODE_62,
 };
 
 
@@ -35,6 +35,7 @@ void model_init(model_t *pmodel) {
     pmodel->run.board_state         = BOARD_STATE_READY;
     pmodel->run.test_state          = TEST_STATE_DONE;
     pmodel->run.test_result         = TEST_RESULT_OK;
+    pmodel->run.cycle_state         = CYCLE_STATE_STOP;
     pmodel->run.downloading         = 0;
     pmodel->run.to_save             = 0;
 
@@ -147,6 +148,31 @@ uint8_t model_get_test_done_history(model_t *pmodel, size_t num) {
 }
 
 
+uint8_t model_get_test_done(model_t *pmodel) {
+    assert(pmodel != NULL);
+    size_t num_tests = model_get_num_tests_in_current_unit(pmodel);
+    for (size_t i = 0; i < num_tests; i++) {
+        if (!model_get_test_done_history(pmodel, i)) {
+            return 0;
+        }
+    }
+    return 1;
+}
+
+
+uint8_t model_get_test_ok(model_t *pmodel) {
+    assert(pmodel != NULL);
+    size_t num_tests = model_get_num_tests_in_current_unit(pmodel);
+    for (size_t i = 0; i < num_tests; i++) {
+        if (model_get_test_done_history(pmodel, i) && model_get_test_result_history(pmodel, i) != TEST_RESULT_OK) {
+            return 0;
+        }
+    }
+    return 1;
+}
+
+
+
 uint8_t model_set_test_status(model_t *pmodel, uint16_t last_executed_test, board_state_t board_state,
                               uint16_t test_state, uint16_t test_result) {
     assert(pmodel != NULL);
@@ -252,12 +278,22 @@ void model_remove_test_unit(model_t *pmodel, size_t test_unit_index) {
     }
 
     pmodel->config.num_custom_test_units--;
+    if (pmodel->config.test_unit_index >= pmodel->config.num_custom_test_units) {
+        pmodel->config.test_unit_index = 0;
+    }
 }
 
 
 const char *model_get_test_unit_name(model_t *pmodel, size_t test_unit_index) {
     assert(pmodel != NULL);
     return (const char *)pmodel->config.test_unit_names[test_unit_index];
+}
+
+
+void model_set_test_unit_name(model_t *pmodel, size_t test_unit_index, const char *name) {
+    assert(pmodel != NULL);
+    snprintf(pmodel->config.test_unit_names[test_unit_index], sizeof(pmodel->config.test_unit_names[test_unit_index]),
+             "%s", name);
 }
 
 
@@ -274,6 +310,7 @@ uint8_t model_is_test_required(test_code_t code) {
         case TEST_CODE_REQUIRED_04:
         case TEST_CODE_REQUIRED_05:
         case TEST_CODE_REQUIRED_06:
+        case TEST_CODE_REQUIRED_07:
             return 1;
 
         default:

@@ -32,6 +32,8 @@ void machine_read_status(void);
 void machine_restart_communication(void);
 void machine_start_test(uint16_t code);
 void machine_reset_test(void);
+void machine_test_done(void);
+void machine_test_error(void);
 
 
 #endif
