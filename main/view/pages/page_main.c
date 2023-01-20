@@ -4,6 +4,8 @@
 #include "view/style/style.h"
 #include "view/common.h"
 #include "log.h"
+#include "view/descriptions/test_code.h"
+#include "view/descriptions/error.h"
 
 
 #define TEST_CONT_COLLAPSED_HEIGHT 80
@@ -16,7 +18,6 @@ LV_IMG_DECLARE(img_icon_connection);
 LV_IMG_DECLARE(img_icon_settings);
 LV_IMG_DECLARE(img_icon_play);
 LV_IMG_DECLARE(img_icon_reset);
-LV_IMG_DECLARE(img_icon_download);
 
 
 enum {
@@ -43,7 +44,6 @@ struct page_data {
     lv_obj_t *btn_connection;
     lv_obj_t *btn_play;
     lv_obj_t *btn_reset;
-    lv_obj_t *btn_download;
     lv_obj_t *lbl_status;
 
     lv_obj_t *test_interface;
@@ -106,11 +106,6 @@ static void open_page(lv_pman_handle_t handle, void *args, void *data) {
     btn = view_common_icon_button_create(right_panel, &img_icon_reset);
     lv_pman_register_obj_id(handle, btn, RESET_BTN_ID);
     pdata->btn_reset = btn;
-
-    btn = view_common_icon_button_create(right_panel, &img_icon_download);
-    lv_pman_register_obj_id(handle, btn, DOWNLOAD_BTN_ID);
-    pdata->btn_download = btn;
-
 
     lv_obj_t *left_panel = lv_obj_create(cont);
     lv_obj_add_style(left_panel, (lv_style_t *)&style_panel, LV_STATE_DEFAULT);
@@ -192,8 +187,10 @@ static lv_pman_msg_t process_page_event(void *args, void *data, lv_pman_event_t 
                 case LV_EVENT_CLICKED: {
                     switch (event.lvgl.id) {
                         case SKIP_BTN_ID:
-                            model_next_test(pmodel);
-                            update_page(pmodel, pdata);
+                            if (model_next_test(pmodel) == 0) {
+                                update_page(pmodel, pdata);
+                                msg.cmsg.tag = LV_PMAN_CONTROLLER_MSG_TAG_START_TEST_UNIT;
+                            }
                             break;
 
                         case PLAY_BTN_ID:
@@ -249,7 +246,8 @@ static lv_pman_msg_t process_page_event(void *args, void *data, lv_pman_event_t 
                         pdata->previous_test_code  = model_get_last_test(pmodel);
                     }
 
-                    lv_obj_scroll_to_view(pdata->test_widgets[model_get_test_index(pmodel)].obj, LV_ANIM_ON);
+                    //lv_obj_scroll_to_view(pdata->test_widgets[model_get_test_index(pmodel)].obj, LV_ANIM_ON);
+                    lv_obj_scroll_to_y(pdata->test_interface, lv_obj_get_y(pdata->test_widgets[model_get_test_index(pmodel)].obj) - 64, LV_ANIM_ON);
                     update_page(pmodel, pdata);
                     break;
             }
@@ -265,19 +263,22 @@ static test_widget_t test_widget_create(lv_obj_t *root, uint16_t code) {
     lv_obj_t *cont = lv_btn_create(root);
     lv_obj_clear_flag(cont, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_clear_flag(cont, LV_OBJ_FLAG_CLICKABLE);
-    lv_obj_set_size(cont, LV_PCT(95), TEST_CONT_COLLAPSED_HEIGHT);
+    lv_obj_set_size(cont, LV_PCT(98), TEST_CONT_COLLAPSED_HEIGHT);
     lv_obj_add_style(cont, (lv_style_t *)&style_unselected, LV_STATE_DEFAULT);
 
     lv_obj_t *lbl = lv_label_create(cont);
-    lv_label_set_long_mode(lbl, LV_LABEL_LONG_SCROLL_CIRCULAR);
-    lv_obj_set_width(lbl, LV_PCT(80));
+    lv_label_set_long_mode(lbl, LV_LABEL_LONG_SCROLL);
+    lv_obj_set_style_anim_speed(lbl, 20, LV_STATE_DEFAULT);
+    lv_obj_set_width(lbl, LV_PCT(94));
     lv_obj_align(lbl, LV_ALIGN_LEFT_MID, 0, 0);
-    lv_label_set_text_fmt(lbl, "%i", code);
+    lv_label_set_text_fmt(lbl, "%i: %s", code, test_code_to_string(code));
 
     lv_obj_t *lbl_err = lv_label_create(cont);
+    lv_label_set_long_mode(lbl_err, LV_LABEL_LONG_SCROLL);
     lv_obj_set_width(lbl_err, LV_PCT(80));
-    lv_obj_align(lbl_err, LV_ALIGN_BOTTOM_LEFT, 0, 0);
-    lv_obj_set_style_text_color(lbl_err, STYLE_RED, LV_STATE_DEFAULT);
+    lv_obj_set_style_anim_speed(lbl_err, 20, LV_STATE_DEFAULT);
+    lv_obj_set_style_text_font(lbl_err, &lv_font_montserrat_24, LV_STATE_DEFAULT);
+    lv_obj_align(lbl_err, LV_ALIGN_BOTTOM_LEFT, 0, -16);
 
     lv_obj_t *btn_err = lv_btn_create(cont);
     lv_obj_t *btn_lbl = lv_label_create(btn_err);
@@ -292,12 +293,12 @@ static test_widget_t test_widget_create(lv_obj_t *root, uint16_t code) {
     lv_obj_set_style_border_color(cb, STYLE_FG_COLOR, LV_PART_INDICATOR);
     lv_obj_set_style_border_width(cb, 2, LV_PART_INDICATOR);
     lv_checkbox_set_text(cb, "");
-    lv_obj_align(cb, LV_ALIGN_RIGHT_MID, 0, 0);
+    lv_obj_align(cb, LV_ALIGN_RIGHT_MID, 16, 0);
 
     lv_obj_t *spinner = lv_spinner_create(cont, 2000, 60);
     lv_obj_set_style_arc_color(spinner, STYLE_FG_COLOR, LV_PART_INDICATOR);
     lv_obj_set_size(spinner, 56, 56);
-    lv_obj_align_to(spinner, cb, LV_ALIGN_OUT_LEFT_MID, -32, 0);
+    lv_obj_align_to(spinner, cb, LV_ALIGN_CENTER, 0, 0);
 
     return (test_widget_t){
         .obj       = cont,
@@ -316,7 +317,6 @@ static void update_page(model_t *pmodel, struct page_data *pdata) {
 
     view_common_set_disabled(pdata->btn_play, model_get_cycle_state(pmodel) != CYCLE_STATE_STOP);
     view_common_set_disabled(pdata->btn_reset, model_get_cycle_state(pmodel) != CYCLE_STATE_STOP);
-    view_common_set_disabled(pdata->btn_download, model_get_cycle_state(pmodel) != CYCLE_STATE_STOP);
 
     switch (model_get_board_state(pmodel)) {
         case BOARD_STATE_ABSENT:
@@ -340,18 +340,19 @@ static void update_page(model_t *pmodel, struct page_data *pdata) {
 
     size_t num_tests = model_get_num_tests_in_current_unit(pmodel);
     for (size_t i = 0; i < num_tests; i++) {
+
         if (model_get_test_done_history(pmodel, i)) {
             view_common_set_checked(pdata->test_widgets[i].result_cb, 1);
 
-            switch (model_get_test_result_history(pmodel, i)) {
+            uint16_t result = model_get_test_result_history(pmodel, i);
+            switch (result) {
                 case TEST_RESULT_OK:
                     lv_obj_set_height(pdata->test_widgets[i].obj, TEST_CONT_COLLAPSED_HEIGHT);
                     lv_obj_align(pdata->test_widgets[i].lbl, LV_ALIGN_LEFT_MID, 0, 0);
-                    lv_obj_align(pdata->test_widgets[i].result_cb, LV_ALIGN_RIGHT_MID, 0, 0);
+                    lv_obj_align(pdata->test_widgets[i].result_cb, LV_ALIGN_RIGHT_MID, 16, 0);
                     view_common_set_hidden(pdata->test_widgets[i].lbl_err, 1);
                     view_common_set_hidden(pdata->test_widgets[i].btn_err, 1);
                     lv_obj_set_style_border_color(pdata->test_widgets[i].obj, STYLE_GREEN, LV_STATE_DEFAULT);
-                    lv_obj_set_style_text_color(pdata->test_widgets[i].lbl, STYLE_GREEN, LV_STATE_DEFAULT);
                     lv_obj_set_style_bg_img_src(pdata->test_widgets[i].result_cb, LV_SYMBOL_OK,
                                                 LV_STATE_CHECKED | LV_PART_INDICATOR);
                     break;
@@ -359,12 +360,13 @@ static void update_page(model_t *pmodel, struct page_data *pdata) {
                 default:
                     lv_obj_set_height(pdata->test_widgets[i].obj, TEST_CONT_EXTENDED_HEIGHT);
                     lv_obj_align(pdata->test_widgets[i].lbl, LV_ALIGN_TOP_LEFT, 0, 0);
-                    lv_obj_align(pdata->test_widgets[i].result_cb, LV_ALIGN_TOP_RIGHT, 0, 0);
+                    lv_obj_align(pdata->test_widgets[i].result_cb, LV_ALIGN_TOP_RIGHT, 16, 0);
                     view_common_set_hidden(pdata->test_widgets[i].lbl_err, 0);
                     view_common_set_hidden(pdata->test_widgets[i].btn_err, model_get_test_index(pmodel) != i);
-                    lv_label_set_text_fmt(pdata->test_widgets[i].lbl_err,
-                                          "Errore %i: ", model_get_test_result_history(pmodel, i));
-                    lv_obj_set_style_text_color(pdata->test_widgets[i].lbl, STYLE_RED, LV_STATE_DEFAULT);
+
+
+                    lv_label_set_text_fmt(pdata->test_widgets[i].lbl_err, "Errore %i: %s", result,
+                                          error_to_string(result));
                     lv_obj_set_style_border_color(pdata->test_widgets[i].obj, STYLE_RED, LV_STATE_DEFAULT);
                     lv_obj_set_style_bg_img_src(pdata->test_widgets[i].result_cb, LV_SYMBOL_CLOSE,
                                                 LV_STATE_CHECKED | LV_PART_INDICATOR);
@@ -397,45 +399,53 @@ static void update_page(model_t *pmodel, struct page_data *pdata) {
                 case TEST_STATE_STARTING:
                 case TEST_STATE_IN_PROGRESS:
                     view_common_set_hidden(pdata->test_widgets[i].spinner, 0);
+                    view_common_set_hidden(pdata->test_widgets[i].result_cb, 1);
                     break;
 
                 default:
                     view_common_set_hidden(pdata->test_widgets[i].spinner, 1);
+                    view_common_set_hidden(pdata->test_widgets[i].result_cb, 0);
                     break;
             }
         } else {
             view_common_set_hidden(pdata->test_widgets[i].spinner, 1);
+            view_common_set_hidden(pdata->test_widgets[i].result_cb, 0);
         }
     }
 
-    switch (model_get_cycle_state(pmodel)) {
-        case CYCLE_STATE_STOP:
-            if (model_get_test_index(pmodel) == 0 && !model_get_test_done_history(pmodel, 0)) {
-                lv_obj_set_style_text_color(pdata->lbl_status, STYLE_WHITE, LV_STATE_DEFAULT);
-                lv_label_set_text(pdata->lbl_status, "Pronto all'esecuzione");
-            } else if (model_get_test_done(pmodel)) {
-                if (model_get_test_ok(pmodel)) {
-                    lv_obj_set_style_text_color(pdata->lbl_status, STYLE_GREEN, LV_STATE_DEFAULT);
-                    lv_label_set_text(pdata->lbl_status, "Test concluso con successo");
+    if (model_get_communication_error(pmodel)) {
+        lv_obj_set_style_text_color(pdata->lbl_status, STYLE_RED, LV_STATE_DEFAULT);
+        lv_label_set_text(pdata->lbl_status, "Errore di comunicazione!");
+    } else {
+        switch (model_get_cycle_state(pmodel)) {
+            case CYCLE_STATE_STOP:
+                if (model_get_test_index(pmodel) == 0 && !model_get_test_done_history(pmodel, 0)) {
+                    lv_obj_set_style_text_color(pdata->lbl_status, STYLE_WHITE, LV_STATE_DEFAULT);
+                    lv_label_set_text(pdata->lbl_status, "Pronto all'esecuzione");
+                } else if (model_get_test_done(pmodel)) {
+                    if (model_get_test_ok(pmodel)) {
+                        lv_obj_set_style_text_color(pdata->lbl_status, STYLE_GREEN, LV_STATE_DEFAULT);
+                        lv_label_set_text(pdata->lbl_status, "Test concluso con successo");
+                    } else {
+                        lv_obj_set_style_text_color(pdata->lbl_status, STYLE_RED, LV_STATE_DEFAULT);
+                        lv_label_set_text(pdata->lbl_status, "Errori durante il test");
+                    }
                 } else {
-                    lv_obj_set_style_text_color(pdata->lbl_status, STYLE_RED, LV_STATE_DEFAULT);
-                    lv_label_set_text(pdata->lbl_status, "Errori durante il test");
+                    lv_obj_set_style_text_color(pdata->lbl_status, STYLE_WHITE, LV_STATE_DEFAULT);
+                    lv_label_set_text(pdata->lbl_status, "Test interrotto");
                 }
-            } else {
+                break;
+
+            case CYCLE_STATE_RUNNING:
                 lv_obj_set_style_text_color(pdata->lbl_status, STYLE_WHITE, LV_STATE_DEFAULT);
-                lv_label_set_text(pdata->lbl_status, "Test interrotto");
-            }
-            break;
+                lv_label_set_text(pdata->lbl_status, "Test in corso");
+                break;
 
-        case CYCLE_STATE_RUNNING:
-            lv_obj_set_style_text_color(pdata->lbl_status, STYLE_WHITE, LV_STATE_DEFAULT);
-            lv_label_set_text(pdata->lbl_status, "Test in corso");
-            break;
-
-        case CYCLE_STATE_PROGRAMMING:
-            lv_obj_set_style_text_color(pdata->lbl_status, STYLE_WHITE, LV_STATE_DEFAULT);
-            lv_label_set_text(pdata->lbl_status, "Programmazione in corso");
-            break;
+            case CYCLE_STATE_PROGRAMMING:
+                lv_obj_set_style_text_color(pdata->lbl_status, STYLE_WHITE, LV_STATE_DEFAULT);
+                lv_label_set_text(pdata->lbl_status, "Programmazione in corso");
+                break;
+        }
     }
 }
 

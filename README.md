@@ -9,7 +9,8 @@
  - (DONE) Allow to change test unit name
  - (DONE) Allow to skip failed test
  - (DONE) Required tests cannot be skipped
- - Add test codes and errors descriptions (prepare a couple of CSV files)
+ - (DONE) Add test codes and errors descriptions (prepare a couple of CSV files)
+ - Add test 60 - programming
  - Before test 61 there must be the programming step
  - Save the outcome of the tests when the test is reset
 

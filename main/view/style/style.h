@@ -11,7 +11,7 @@
 #define STYLE_WHITE         ((lv_color_t)LV_COLOR_MAKE(0xFF, 0xFF, 0xFF))
 #define STYLE_PRIMARY_COLOR ((lv_color_t)LV_COLOR_MAKE(70, 55, 55))
 
-#define MAIN_PANEL_WIDTH (LV_HOR_RES - 124)
+#define MAIN_PANEL_WIDTH (LV_HOR_RES - 116)
 
 
 extern lv_style_t       style_icon;

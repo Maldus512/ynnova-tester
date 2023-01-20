@@ -33,6 +33,7 @@ struct page_data {
 static void               update_page(model_t *pmodel, struct page_data *pdata);
 static test_unit_widget_t test_unit_widget_create(lv_obj_t *root, const char *name);
 static void               test_units_list_update(model_t *pmodel, struct page_data *pdata);
+static uint8_t            single_choice(model_t *pmodel, struct page_data *pdata, size_t *choice);
 
 
 static void *create_page(void *args, void *extra) {
@@ -122,9 +123,11 @@ static lv_pman_msg_t process_page_event(void *args, void *data, lv_pman_event_t 
 
                 case LV_EVENT_VALUE_CHANGED: {
                     switch (event.lvgl.id) {
-                        case TEXTAREA_ID:
+                        case TEXTAREA_ID: {
+                            //TODO: after a delay check if the code selected has a single result
                             update_page(pmodel, pdata);
                             break;
+                        }
                     }
                     break;
                 }
@@ -182,6 +185,29 @@ static void update_page(model_t *pmodel, struct page_data *pdata) {
     }
 
     view_common_set_hidden(pdata->lbl_msg, any);
+}
+
+
+static uint8_t single_choice(model_t *pmodel, struct page_data *pdata, size_t *choice) {
+    const char *query = lv_textarea_get_text(pdata->textarea);
+    size_t      count = 0;
+    size_t      last  = 0;
+
+    for (size_t i = 0; i < model_get_num_test_units(pmodel); i++) {
+        if (pdata->test_unit_widgets[i].obj != NULL) {
+            if (strcasestr(model_get_test_unit_name(pmodel, i), query) != NULL) {
+                count++;
+                last = i;
+            }
+        }
+    }
+
+    if (count == 1) {
+        *choice = last;
+        return 1;
+    } else {
+        return 0;
+    }
 }
 
 

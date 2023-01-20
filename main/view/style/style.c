@@ -20,7 +20,7 @@ LV_STYLE_CONST_INIT(style_panel, style_panel_props);
 
 
 static const lv_style_const_prop_t style_unselected_props[] = {
-    LV_STYLE_CONST_BORDER_WIDTH(8),
+    LV_STYLE_CONST_BORDER_WIDTH(4),
     LV_STYLE_CONST_BORDER_COLOR(STYLE_FG_COLOR),
     LV_STYLE_CONST_BORDER_OPA(LV_OPA_TRANSP),
 };

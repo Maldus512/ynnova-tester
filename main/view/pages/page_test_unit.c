@@ -3,6 +3,7 @@
 #include "view/view.h"
 #include "view/style/style.h"
 #include "view/common.h"
+#include "view/descriptions/test_code.h"
 #include "log.h"
 
 
@@ -203,15 +204,18 @@ static test_widget_t test_widget_create(lv_obj_t *root, uint16_t code) {
     lv_obj_add_style(cont, (lv_style_t *)&style_unselected, LV_STATE_DEFAULT);
 
     lv_obj_t *lbl = lv_label_create(cont);
+    lv_label_set_long_mode(lbl, LV_LABEL_LONG_SCROLL);
+    lv_obj_set_style_anim_speed(lbl, 20, LV_STATE_DEFAULT);
+    lv_obj_set_width(lbl, LV_PCT(94));
     lv_obj_align(lbl, LV_ALIGN_LEFT_MID, 0, 0);
-    lv_label_set_text_fmt(lbl, "%i", code);
+    lv_label_set_text_fmt(lbl, "%i: %s", code, test_code_to_string(code));
 
     lv_obj_t *cb = lv_checkbox_create(cont);
     lv_obj_clear_flag(cb, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_set_style_border_color(cb, STYLE_FG_COLOR, LV_PART_INDICATOR);
     lv_obj_set_style_border_width(cb, 2, LV_PART_INDICATOR);
     lv_checkbox_set_text(cb, "");
-    lv_obj_align(cb, LV_ALIGN_RIGHT_MID, 0, 0);
+    lv_obj_align(cb, LV_ALIGN_RIGHT_MID, 16, 0);
 
     return (test_widget_t){.obj = cont, .selection_cb = cb};
 }

@@ -1,5 +1,6 @@
 # Binaries
 app
+tools/meta/meta
 
 # Environment
 .vscode
