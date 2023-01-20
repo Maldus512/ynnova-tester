@@ -37,17 +37,14 @@ void controller_manage_message(void *args, lv_pman_controller_msg_t msg) {
             break;
 
         case LV_PMAN_CONTROLLER_MSG_TAG_DOWNLOAD:
-            model_set_downloading(pmodel, 1);
+            model_set_cycle_state(pmodel, CYCLE_STATE_DOWNLOADING);
             stflash_run();
             view_simple_event(LV_PMAN_USER_EVENT_TAG_UPDATE);
             break;
 
         case LV_PMAN_CONTROLLER_MSG_TAG_RESET_TEST:
+            model_set_cycle_state(pmodel, CYCLE_STATE_STOP);
             machine_reset_test();
-            break;
-
-        case LV_PMAN_CONTROLLER_MSG_TAG_START_TEST:
-            machine_start_test(msg.test);
             break;
 
         case LV_PMAN_CONTROLLER_MSG_TAG_RESTART_COMMUNICATION:
@@ -56,7 +53,7 @@ void controller_manage_message(void *args, lv_pman_controller_msg_t msg) {
 
         case LV_PMAN_CONTROLLER_MSG_TAG_START_TEST_UNIT:
             machine_start_test(model_get_current_test_code(pmodel));
-            model_set_cycle_state(pmodel, CYCLE_STATE_RUNNING);
+            model_set_cycle_state(pmodel, CYCLE_STATE_TESTING);
             view_simple_event(LV_PMAN_USER_EVENT_TAG_UPDATE);
             break;
     }
@@ -74,7 +71,7 @@ void controller_manage(model_t *pmodel) {
             case MACHINE_RESPONSE_MESSAGE_TAG_ERROR:
                 log_error("Machine message error");
                 if (model_set_communication_error(pmodel, 1)) {
-                    model_set_cycle_state(pmodel, CYCLE_STATE_STOP);
+                    model_set_cycle_state(pmodel, CYCLE_STATE_INTERRUPTED);
                     view_simple_event(LV_PMAN_USER_EVENT_TAG_UPDATE);
                 }
                 break;
@@ -89,13 +86,24 @@ void controller_manage(model_t *pmodel) {
                         machine_test_error();
                     }
 
-                    if (model_get_cycle_state(pmodel) == CYCLE_STATE_RUNNING &&
+                    if (model_get_cycle_state(pmodel) == CYCLE_STATE_TESTING &&
                         model_get_test_state(pmodel) == TEST_STATE_DONE) {
                         if (model_get_test_result(pmodel) != TEST_RESULT_OK) {
-                            model_set_cycle_state(pmodel, CYCLE_STATE_STOP);
+                            model_set_cycle_state(pmodel, CYCLE_STATE_INTERRUPTED);
                         } else {
                             if (model_next_test(pmodel) == 0) {
-                                machine_start_test(model_get_current_test_code(pmodel));
+                                if (model_get_current_test_code(pmodel) >= TEST_PROGRAMMING_THRESHOLD &&
+                                    model_get_downloading_state(pmodel) == DOWNLOADING_STATE_NONE) {
+                                    // Before moving on program the board
+                                    model_set_cycle_state(pmodel, CYCLE_STATE_DOWNLOADING);
+                                    stflash_run();
+                                } else {
+                                    machine_start_test(model_get_current_test_code(pmodel));
+                                }
+                            } else if (model_get_downloading_state(pmodel) == DOWNLOADING_STATE_NONE) {
+                                // As last step program the board
+                                model_set_cycle_state(pmodel, CYCLE_STATE_DOWNLOADING);
+                                stflash_run();
                             } else {
                                 machine_test_done();
                                 model_set_cycle_state(pmodel, CYCLE_STATE_STOP);
@@ -115,15 +123,27 @@ void controller_manage(model_t *pmodel) {
     if (stflash_get_response(&response)) {
         switch (response) {
             case STFLASH_RESPONSE_OK:
-                model_set_downloading(pmodel, 0);
-                view_common_toast("Firmware caricato con successo");
+                model_set_downloading_state(pmodel, DOWNLOADING_STATE_SUCCESSFUL);
+                // view_common_toast("Firmware caricato con successo");
                 break;
 
             case STFLASH_RESPONSE_FAIL:
-                model_set_downloading(pmodel, 0);
-                view_common_toast("Caricamento del firmware fallito");
+                model_set_downloading_state(pmodel, DOWNLOADING_STATE_FAILED);
+                model_set_cycle_state(pmodel, CYCLE_STATE_INTERRUPTED);
+                // view_common_toast("Caricamento del firmware fallito");
                 break;
         }
+
+        if (model_get_cycle_state(pmodel) != CYCLE_STATE_INTERRUPTED) {
+            if (model_is_test_sequence_done(pmodel)) {
+                machine_test_done();
+                model_set_cycle_state(pmodel, CYCLE_STATE_INTERRUPTED);
+            } else {
+                machine_start_test(model_get_current_test_code(pmodel));
+                model_set_cycle_state(pmodel, CYCLE_STATE_TESTING);
+            }
+        }
+
         view_simple_event(LV_PMAN_USER_EVENT_TAG_UPDATE);
     }
 

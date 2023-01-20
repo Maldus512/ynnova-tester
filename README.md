@@ -10,8 +10,8 @@
  - (DONE) Allow to skip failed test
  - (DONE) Required tests cannot be skipped
  - (DONE) Add test codes and errors descriptions (prepare a couple of CSV files)
- - Add test 60 - programming
- - Before test 61 there must be the programming step
+ - (DONE) Add test 60 - programming
+ - (DONE) Before test 61 there must be the programming step
  - Save the outcome of the tests when the test is reset
 
 ## Notes

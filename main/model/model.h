@@ -6,10 +6,11 @@
 #include <stdint.h>
 
 
-#define MAX_NUM_TEST_UNITS         8
+#define MAX_NUM_TEST_UNITS         16
 #define MAX_TEST_SUITE_LENGTH      64
 #define TEST_UNIT_NAME_LENGTH      32
 #define DEFAULT_TEST_CONFIGURATION 0
+#define TEST_PROGRAMMING_THRESHOLD TEST_CODE_61
 
 
 #define GETTER(name, field)                                                                                            \
@@ -98,9 +99,17 @@ typedef enum {
 
 typedef enum {
     CYCLE_STATE_STOP = 0,
-    CYCLE_STATE_RUNNING,
-    CYCLE_STATE_PROGRAMMING,
+    CYCLE_STATE_INTERRUPTED,
+    CYCLE_STATE_TESTING,
+    CYCLE_STATE_DOWNLOADING,
 } cycle_state_t;
+
+
+typedef enum {
+    DOWNLOADING_STATE_NONE = 0,
+    DOWNLOADING_STATE_SUCCESSFUL,
+    DOWNLOADING_STATE_FAILED,
+} downloading_state_t;
 
 
 typedef struct {
@@ -112,14 +121,14 @@ typedef struct {
     } config;
 
     struct {
-        uint16_t      last_test;
-        uint8_t       communication_error;
-        board_state_t board_state;
-        cycle_state_t cycle_state;
-        test_state_t  test_state;
-        test_result_t test_result;
-        uint8_t       downloading;
-        uint8_t       to_save;
+        uint16_t            last_test;
+        uint8_t             communication_error;
+        board_state_t       board_state;
+        cycle_state_t       cycle_state;
+        test_state_t        test_state;
+        test_result_t       test_result;
+        uint8_t             to_save;
+        downloading_state_t downloading_state;
 
         size_t   test_index;     // Test index in current test unit
         uint16_t test_result_history[MAX_TEST_SUITE_LENGTH];
@@ -154,11 +163,13 @@ uint8_t     model_is_test_required(test_code_t code);
 void        model_set_test_unit_name(model_t *pmodel, size_t test_unit_index, const char *name);
 uint8_t     model_get_test_done(model_t *pmodel);
 uint8_t     model_get_test_ok(model_t *pmodel);
+uint8_t     model_is_stuck_on_download(model_t *pmodel);
+
 
 GETTERNSETTER(last_test, run.last_test);
 GETTERNSETTER(communication_error, run.communication_error);
 GETTERNSETTER(board_state, run.board_state);
-GETTERNSETTER(downloading, run.downloading);
+GETTERNSETTER(downloading_state, run.downloading_state);
 GETTERNSETTER(test_unit_index, config.test_unit_index);
 GETTERNSETTER(num_custom_test_units, config.num_custom_test_units);
 GETTERNSETTER(to_save, run.to_save);

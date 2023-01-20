@@ -35,6 +35,7 @@ static test_widget_t test_widget_create(lv_obj_t *root, uint16_t code);
 
 
 static void *create_page(void *args, void *extra) {
+    (void)args;
     struct page_data *pdata = lv_mem_alloc(sizeof(struct page_data));
     assert(pdata != NULL);
 

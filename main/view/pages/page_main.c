@@ -18,6 +18,7 @@ LV_IMG_DECLARE(img_icon_connection);
 LV_IMG_DECLARE(img_icon_settings);
 LV_IMG_DECLARE(img_icon_play);
 LV_IMG_DECLARE(img_icon_reset);
+LV_IMG_DECLARE(img_icon_restart);
 
 
 enum {
@@ -51,14 +52,14 @@ struct page_data {
     lv_obj_t *board_open_msg;
 
     test_widget_t test_widgets[MAX_TEST_SUITE_LENGTH];
-
-    test_state_t previous_test_state;
-    uint16_t     previous_test_code;
+    test_widget_t download_widget;
 };
 
 
 static void          update_page(model_t *pmodel, struct page_data *pdata);
 static test_widget_t test_widget_create(lv_obj_t *root, uint16_t code);
+static test_widget_t step_widget_create(lv_obj_t *root, const char *text);
+static uint8_t       test_is_selected(model_t *pmodel, size_t num);
 
 
 static void *create_page(void *args, void *extra) {
@@ -103,7 +104,7 @@ static void open_page(lv_pman_handle_t handle, void *args, void *data) {
     lv_pman_register_obj_id(handle, btn, PLAY_BTN_ID);
     pdata->btn_play = btn;
 
-    btn = view_common_icon_button_create(right_panel, &img_icon_reset);
+    btn = view_common_icon_button_create(right_panel, &img_icon_restart);
     lv_pman_register_obj_id(handle, btn, RESET_BTN_ID);
     pdata->btn_reset = btn;
 
@@ -120,9 +121,19 @@ static void open_page(lv_pman_handle_t handle, void *args, void *data) {
     lv_obj_set_flex_flow(obj, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_flex_align(obj, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
 
-    size_t num_tests = model_get_num_tests_in_current_unit(pmodel);
+    uint8_t programming_step_shown = 0;
+    size_t  num_tests              = model_get_num_tests_in_current_unit(pmodel);
     for (size_t i = 0; i < num_tests; i++) {
-        pdata->test_widgets[i] = test_widget_create(obj, model_get_test_code_from_current_unit(pmodel, i));
+        uint16_t code = model_get_test_code_from_current_unit(pmodel, i);
+
+        // If we are past the programming step or at the end add the programming step widget
+        if (!programming_step_shown && (code >= TEST_PROGRAMMING_THRESHOLD || (i + 1 == num_tests))) {
+            pdata->download_widget = step_widget_create(obj, "Programmazione dispositivo");
+            lv_pman_register_obj_id(handle, pdata->download_widget.btn_err, SKIP_BTN_ID);
+            programming_step_shown = 1;
+        }
+
+        pdata->test_widgets[i] = test_widget_create(obj, code);
         lv_pman_register_obj_id(handle, pdata->test_widgets[i].btn_err, SKIP_BTN_ID);
     }
 
@@ -187,19 +198,31 @@ static lv_pman_msg_t process_page_event(void *args, void *data, lv_pman_event_t 
                 case LV_EVENT_CLICKED: {
                     switch (event.lvgl.id) {
                         case SKIP_BTN_ID:
-                            if (model_next_test(pmodel) == 0) {
-                                update_page(pmodel, pdata);
-                                msg.cmsg.tag = LV_PMAN_CONTROLLER_MSG_TAG_START_TEST_UNIT;
+                            if (model_is_stuck_on_download(pmodel)) {
+                                // Do nothing, we can't move on if we are stuck on download
+                            } else {
+                                if (model_next_test(pmodel) == 0) {
+                                    update_page(pmodel, pdata);
+                                    msg.cmsg.tag = LV_PMAN_CONTROLLER_MSG_TAG_START_TEST_UNIT;
+                                }
                             }
                             break;
 
                         case PLAY_BTN_ID:
                             switch (model_get_cycle_state(pmodel)) {
-                                case CYCLE_STATE_STOP:
-                                    if (model_is_test_sequence_done(pmodel)) {
-                                        model_reset_test_sequence(pmodel);
-                                    }
+                                case CYCLE_STATE_INTERRUPTED:
+                                    if (model_is_stuck_on_download(pmodel)) {
+                                        msg.cmsg.tag = LV_PMAN_CONTROLLER_MSG_TAG_DOWNLOAD;
+                                    } else {
+                                        if (model_is_test_sequence_done(pmodel)) {
+                                            model_reset_test_sequence(pmodel);
+                                        }
 
+                                        msg.cmsg.tag = LV_PMAN_CONTROLLER_MSG_TAG_START_TEST_UNIT;
+                                    }
+                                    break;
+
+                                case CYCLE_STATE_STOP:
                                     msg.cmsg.tag = LV_PMAN_CONTROLLER_MSG_TAG_START_TEST_UNIT;
                                     break;
 
@@ -239,15 +262,25 @@ static lv_pman_msg_t process_page_event(void *args, void *data, lv_pman_event_t 
         case LV_PMAN_EVENT_TAG_USER: {
             switch (event.user_event.tag) {
                 case LV_PMAN_USER_EVENT_TAG_UPDATE:
-                    if (pdata->previous_test_state != model_get_test_state(pmodel) ||
-                        pdata->previous_test_code != model_get_last_test(pmodel)) {
+                    switch (model_get_cycle_state(pmodel)) {
+                        case CYCLE_STATE_DOWNLOADING:
+                            lv_obj_scroll_to_y(pdata->test_interface, lv_obj_get_y(pdata->download_widget.obj) - 64,
+                                               LV_ANIM_ON);
+                            break;
 
-                        pdata->previous_test_state = model_get_test_state(pmodel);
-                        pdata->previous_test_code  = model_get_last_test(pmodel);
+                        case CYCLE_STATE_STOP:
+                            lv_obj_scroll_to_y(pdata->test_interface, 0, LV_ANIM_ON);
+                            break;
+
+                        case CYCLE_STATE_INTERRUPTED:
+                            break;
+
+                        case CYCLE_STATE_TESTING:
+                            lv_obj_scroll_to_y(pdata->test_interface,
+                                               lv_obj_get_y(pdata->test_widgets[model_get_test_index(pmodel)].obj) - 64,
+                                               LV_ANIM_ON);
+                            break;
                     }
-
-                    //lv_obj_scroll_to_view(pdata->test_widgets[model_get_test_index(pmodel)].obj, LV_ANIM_ON);
-                    lv_obj_scroll_to_y(pdata->test_interface, lv_obj_get_y(pdata->test_widgets[model_get_test_index(pmodel)].obj) - 64, LV_ANIM_ON);
                     update_page(pmodel, pdata);
                     break;
             }
@@ -260,6 +293,13 @@ static lv_pman_msg_t process_page_event(void *args, void *data, lv_pman_event_t 
 
 
 static test_widget_t test_widget_create(lv_obj_t *root, uint16_t code) {
+    char string[64] = {0};
+    snprintf(string, sizeof(string), "%i: %s", code, test_code_to_string(code));
+    return step_widget_create(root, string);
+}
+
+
+static test_widget_t step_widget_create(lv_obj_t *root, const char *text) {
     lv_obj_t *cont = lv_btn_create(root);
     lv_obj_clear_flag(cont, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_clear_flag(cont, LV_OBJ_FLAG_CLICKABLE);
@@ -271,7 +311,7 @@ static test_widget_t test_widget_create(lv_obj_t *root, uint16_t code) {
     lv_obj_set_style_anim_speed(lbl, 20, LV_STATE_DEFAULT);
     lv_obj_set_width(lbl, LV_PCT(94));
     lv_obj_align(lbl, LV_ALIGN_LEFT_MID, 0, 0);
-    lv_label_set_text_fmt(lbl, "%i: %s", code, test_code_to_string(code));
+    lv_label_set_text(lbl, text);
 
     lv_obj_t *lbl_err = lv_label_create(cont);
     lv_label_set_long_mode(lbl_err, LV_LABEL_LONG_SCROLL);
@@ -315,8 +355,12 @@ static void update_page(model_t *pmodel, struct page_data *pdata) {
     lv_obj_set_style_img_recolor(lv_obj_get_child(pdata->btn_connection, 0),
                                  model_get_communication_error(pmodel) ? STYLE_RED : STYLE_FG_COLOR, LV_STATE_DEFAULT);
 
-    view_common_set_disabled(pdata->btn_play, model_get_cycle_state(pmodel) != CYCLE_STATE_STOP);
-    view_common_set_disabled(pdata->btn_reset, model_get_cycle_state(pmodel) != CYCLE_STATE_STOP);
+    uint8_t control_disabled = model_get_cycle_state(pmodel) == CYCLE_STATE_TESTING ||
+                               model_get_cycle_state(pmodel) == CYCLE_STATE_DOWNLOADING ||
+                               model_get_communication_error(pmodel);
+
+    view_common_set_disabled(pdata->btn_play, control_disabled);
+    view_common_set_disabled(pdata->btn_reset, control_disabled);
 
     switch (model_get_board_state(pmodel)) {
         case BOARD_STATE_ABSENT:
@@ -338,10 +382,59 @@ static void update_page(model_t *pmodel, struct page_data *pdata) {
             break;
     }
 
+    view_common_set_hidden(pdata->download_widget.btn_err, 1);
+    switch (model_get_downloading_state(pmodel)) {
+        case DOWNLOADING_STATE_NONE:
+            lv_obj_set_style_border_opa(pdata->download_widget.obj, LV_OPA_TRANSP, LV_STATE_DEFAULT);
+
+            lv_obj_set_height(pdata->download_widget.obj, TEST_CONT_COLLAPSED_HEIGHT);
+            lv_obj_align(pdata->download_widget.lbl, LV_ALIGN_LEFT_MID, 0, 0);
+            lv_obj_align(pdata->download_widget.result_cb, LV_ALIGN_RIGHT_MID, 16, 0);
+
+            view_common_set_hidden(pdata->download_widget.lbl_err, 1);
+            view_common_set_hidden(pdata->download_widget.result_cb, 0);
+            view_common_set_hidden(pdata->download_widget.spinner, 1);
+            view_common_set_checked(pdata->download_widget.result_cb, 0);
+            break;
+
+        case DOWNLOADING_STATE_SUCCESSFUL:
+            lv_obj_set_style_border_opa(pdata->download_widget.obj, LV_OPA_COVER, LV_STATE_DEFAULT);
+            lv_obj_set_style_border_color(pdata->download_widget.obj, STYLE_GREEN, LV_STATE_DEFAULT);
+            lv_obj_set_style_bg_img_src(pdata->download_widget.result_cb, LV_SYMBOL_OK,
+                                        LV_STATE_CHECKED | LV_PART_INDICATOR);
+
+            lv_obj_set_height(pdata->download_widget.obj, TEST_CONT_COLLAPSED_HEIGHT);
+            lv_obj_align(pdata->download_widget.lbl, LV_ALIGN_LEFT_MID, 0, 0);
+            lv_obj_align(pdata->download_widget.result_cb, LV_ALIGN_RIGHT_MID, 16, 0);
+
+            view_common_set_hidden(pdata->download_widget.lbl_err, 1);
+            view_common_set_hidden(pdata->download_widget.spinner, 1);
+            view_common_set_hidden(pdata->download_widget.result_cb, 0);
+            view_common_set_checked(pdata->download_widget.result_cb, 1);
+            break;
+
+        case DOWNLOADING_STATE_FAILED:
+            lv_obj_set_style_border_opa(pdata->download_widget.obj, LV_OPA_COVER, LV_STATE_DEFAULT);
+            lv_obj_set_style_border_color(pdata->download_widget.obj, STYLE_RED, LV_STATE_DEFAULT);
+            lv_obj_set_style_bg_img_src(pdata->download_widget.result_cb, LV_SYMBOL_CLOSE,
+                                        LV_STATE_CHECKED | LV_PART_INDICATOR);
+
+            lv_obj_set_height(pdata->download_widget.obj, TEST_CONT_EXTENDED_HEIGHT);
+            lv_obj_align(pdata->download_widget.lbl, LV_ALIGN_TOP_LEFT, 0, 0);
+            lv_obj_align(pdata->download_widget.result_cb, LV_ALIGN_TOP_RIGHT, 16, 0);
+
+            view_common_set_hidden(pdata->download_widget.lbl_err, 0);
+            view_common_set_hidden(pdata->download_widget.spinner, 1);
+            view_common_set_hidden(pdata->download_widget.result_cb, 0);
+            view_common_set_checked(pdata->download_widget.result_cb, 1);
+
+            lv_label_set_text(pdata->download_widget.lbl_err, "Programmazione fallita!");
+            break;
+    }
+
     size_t num_tests = model_get_num_tests_in_current_unit(pmodel);
     for (size_t i = 0; i < num_tests; i++) {
-
-        if (model_get_test_done_history(pmodel, i)) {
+        if (model_get_test_done_history(pmodel, i) && model_get_cycle_state(pmodel) != CYCLE_STATE_STOP) {
             view_common_set_checked(pdata->test_widgets[i].result_cb, 1);
 
             uint16_t result = model_get_test_result_history(pmodel, i);
@@ -386,15 +479,15 @@ static void update_page(model_t *pmodel, struct page_data *pdata) {
             view_common_set_checked(pdata->test_widgets[i].result_cb, 0);
         }
 
-        if (model_get_test_index(pmodel) == i) {
+        if (test_is_selected(pmodel, i)) {
             lv_obj_set_style_border_opa(pdata->test_widgets[i].obj, LV_OPA_COVER, LV_STATE_DEFAULT);
         } else if (model_get_test_done_history(pmodel, i)) {
-            lv_obj_set_style_border_width(pdata->test_widgets[i].obj, 2, LV_STATE_DEFAULT);
+            // Do nothing
         } else {
             lv_obj_set_style_border_opa(pdata->test_widgets[i].obj, LV_OPA_TRANSP, LV_STATE_DEFAULT);
         }
 
-        if (model_get_test_index(pmodel) == i) {
+        if (test_is_selected(pmodel, i)) {
             switch (model_get_test_state(pmodel)) {
                 case TEST_STATE_STARTING:
                 case TEST_STATE_IN_PROGRESS:
@@ -419,10 +512,9 @@ static void update_page(model_t *pmodel, struct page_data *pdata) {
     } else {
         switch (model_get_cycle_state(pmodel)) {
             case CYCLE_STATE_STOP:
-                if (model_get_test_index(pmodel) == 0 && !model_get_test_done_history(pmodel, 0)) {
-                    lv_obj_set_style_text_color(pdata->lbl_status, STYLE_WHITE, LV_STATE_DEFAULT);
-                    lv_label_set_text(pdata->lbl_status, "Pronto all'esecuzione");
-                } else if (model_get_test_done(pmodel)) {
+                lv_img_set_src(lv_obj_get_child(pdata->btn_play, 0), &img_icon_play);
+
+                if (model_get_test_done(pmodel)) {
                     if (model_get_test_ok(pmodel)) {
                         lv_obj_set_style_text_color(pdata->lbl_status, STYLE_GREEN, LV_STATE_DEFAULT);
                         lv_label_set_text(pdata->lbl_status, "Test concluso con successo");
@@ -432,20 +524,60 @@ static void update_page(model_t *pmodel, struct page_data *pdata) {
                     }
                 } else {
                     lv_obj_set_style_text_color(pdata->lbl_status, STYLE_WHITE, LV_STATE_DEFAULT);
+                    lv_label_set_text(pdata->lbl_status, "Pronto all'esecuzione");
+                }
+                break;
+
+            case CYCLE_STATE_INTERRUPTED:
+                lv_img_set_src(lv_obj_get_child(pdata->btn_play, 0), &img_icon_reset);
+
+                if ((model_get_test_index(pmodel) == 0 && !model_get_test_done_history(pmodel, 0)) ||
+                    model_is_stuck_on_download(pmodel)) {
+                    lv_obj_set_style_text_color(pdata->lbl_status, STYLE_WHITE, LV_STATE_DEFAULT);
+                    lv_label_set_text(pdata->lbl_status, "Riprova");
+                } else {
+                    lv_obj_set_style_text_color(pdata->lbl_status, STYLE_WHITE, LV_STATE_DEFAULT);
                     lv_label_set_text(pdata->lbl_status, "Test interrotto");
                 }
                 break;
 
-            case CYCLE_STATE_RUNNING:
+            case CYCLE_STATE_TESTING:
                 lv_obj_set_style_text_color(pdata->lbl_status, STYLE_WHITE, LV_STATE_DEFAULT);
                 lv_label_set_text(pdata->lbl_status, "Test in corso");
                 break;
 
-            case CYCLE_STATE_PROGRAMMING:
-                lv_obj_set_style_text_color(pdata->lbl_status, STYLE_WHITE, LV_STATE_DEFAULT);
-                lv_label_set_text(pdata->lbl_status, "Programmazione in corso");
+            case CYCLE_STATE_DOWNLOADING:
+                view_common_set_hidden(pdata->download_widget.lbl_err, 1);
+                view_common_set_hidden(pdata->download_widget.spinner, 0);
+                view_common_set_hidden(pdata->download_widget.result_cb, 1);
+                lv_label_set_text(pdata->lbl_status, "Caricamento del firmware in corso");
                 break;
         }
+    }
+}
+
+
+static uint8_t test_is_selected(model_t *pmodel, size_t num) {
+    if (model_get_test_index(pmodel) == num) {
+        switch (model_get_cycle_state(pmodel)) {
+            case CYCLE_STATE_DOWNLOADING:
+                // During download no test is selected
+                return 0;
+
+            case CYCLE_STATE_TESTING:
+                // No download in progress, this is the current test
+                return 1;
+
+            case CYCLE_STATE_INTERRUPTED:
+                // Downloading has failed and we are stopped on that
+                return !(model_get_downloading_state(pmodel) == DOWNLOADING_STATE_FAILED &&
+                         !model_get_test_done_history(pmodel, num));
+
+            default:
+                return 0;
+        }
+    } else {
+        return 0;
     }
 }
 

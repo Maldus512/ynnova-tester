@@ -41,6 +41,8 @@ static void               test_units_list_update(model_t *pmodel, struct page_da
 
 
 static void *create_page(void *args, void *extra) {
+    (void)args;
+    (void)extra;
     struct page_data *pdata = lv_mem_alloc(sizeof(struct page_data));
     assert(pdata != NULL);
 

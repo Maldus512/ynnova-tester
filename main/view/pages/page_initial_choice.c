@@ -33,7 +33,7 @@ struct page_data {
 static void               update_page(model_t *pmodel, struct page_data *pdata);
 static test_unit_widget_t test_unit_widget_create(lv_obj_t *root, const char *name);
 static void               test_units_list_update(model_t *pmodel, struct page_data *pdata);
-static uint8_t            single_choice(model_t *pmodel, struct page_data *pdata, size_t *choice);
+static uint8_t            perfect_fit(model_t *pmodel, struct page_data *pdata, size_t *choice);
 
 
 static void *create_page(void *args, void *extra) {
@@ -57,8 +57,14 @@ static void open_page(lv_pman_handle_t handle, void *args, void *data) {
 
     pdata->handle = handle;
 
-    lv_obj_t *textarea = lv_textarea_create(lv_scr_act());
-    lv_obj_set_size(textarea, LV_HOR_RES - 8, 64);
+    lv_obj_t *cont = lv_obj_create(lv_scr_act());
+    lv_obj_set_size(cont, LV_PCT(100), LV_PCT(100));
+    lv_obj_add_style(cont, (lv_style_t *)&style_transparent_cont, LV_STATE_DEFAULT);
+    lv_obj_set_style_pad_all(cont, 4, LV_STATE_DEFAULT);
+    lv_obj_clear_flag(cont, LV_OBJ_FLAG_SCROLLABLE);
+
+    lv_obj_t *textarea = lv_textarea_create(cont);
+    lv_obj_set_size(textarea, LV_HOR_RES - 16, 64);
     lv_obj_align(textarea, LV_ALIGN_TOP_LEFT, 4, 8);
     lv_textarea_set_text(textarea, "");
     lv_textarea_set_max_length(textarea, TEST_UNIT_NAME_LENGTH - 1);
@@ -68,10 +74,10 @@ static void open_page(lv_pman_handle_t handle, void *args, void *data) {
     lv_group_focus_obj(textarea);
     pdata->textarea = textarea;
 
-    lv_obj_t *center_panel = lv_obj_create(lv_scr_act());
+    lv_obj_t *center_panel = lv_obj_create(cont);
     lv_obj_add_style(center_panel, (lv_style_t *)&style_panel, LV_STATE_DEFAULT);
-    lv_obj_set_size(center_panel, LV_HOR_RES - 16, LV_VER_RES - 64 - 16);
-    lv_obj_align(center_panel, LV_ALIGN_BOTTOM_MID, 0, 0);
+    lv_obj_set_size(center_panel, LV_HOR_RES - 16, LV_VER_RES - 64 - 64 - 24);
+    lv_obj_align(center_panel, LV_ALIGN_BOTTOM_MID, 0, -68);
 
     obj = lv_obj_create(center_panel);
     lv_obj_set_size(obj, LV_PCT(100), LV_PCT(100));
@@ -84,7 +90,16 @@ static void open_page(lv_pman_handle_t handle, void *args, void *data) {
 
     test_units_list_update(pmodel, pdata);
 
-    lv_obj_t *keyboard = lv_keyboard_create(lv_scr_act());
+    lv_obj_t *bottom_panel = lv_obj_create(cont);
+    lv_obj_add_style(bottom_panel, (lv_style_t *)&style_panel, LV_STATE_DEFAULT);
+    lv_obj_set_size(bottom_panel, LV_HOR_RES - 16, 80);
+    lv_obj_align(bottom_panel, LV_ALIGN_BOTTOM_MID, 0, 16);
+
+    lv_obj_t *lbl = lv_label_create(bottom_panel);
+    lv_label_set_text(lbl, "Inserire o scannerizzare il codice del prodotto");
+    lv_obj_align(lbl, LV_ALIGN_TOP_MID, 0, 0);
+
+    lv_obj_t *keyboard = lv_keyboard_create(cont);
     lv_obj_set_size(keyboard, LV_HOR_RES, LV_VER_RES - 64 - 16);
     lv_keyboard_set_textarea(keyboard, textarea);
     lv_pman_register_obj_id(handle, keyboard, KEYBOARD_ID);
@@ -124,8 +139,14 @@ static lv_pman_msg_t process_page_event(void *args, void *data, lv_pman_event_t 
                 case LV_EVENT_VALUE_CHANGED: {
                     switch (event.lvgl.id) {
                         case TEXTAREA_ID: {
-                            //TODO: after a delay check if the code selected has a single result
-                            update_page(pmodel, pdata);
+                            size_t choice = 0;
+                            if (perfect_fit(pmodel, pdata, &choice)) {
+                                model_set_test_unit_index(pmodel, event.lvgl.number);
+                                msg.vmsg.tag  = LV_PMAN_VIEW_MSG_TAG_REBASE;
+                                msg.vmsg.page = &page_main;
+                            } else {
+                                update_page(pmodel, pdata);
+                            }
                             break;
                         }
                     }
@@ -188,26 +209,19 @@ static void update_page(model_t *pmodel, struct page_data *pdata) {
 }
 
 
-static uint8_t single_choice(model_t *pmodel, struct page_data *pdata, size_t *choice) {
+static uint8_t perfect_fit(model_t *pmodel, struct page_data *pdata, size_t *choice) {
     const char *query = lv_textarea_get_text(pdata->textarea);
-    size_t      count = 0;
-    size_t      last  = 0;
 
     for (size_t i = 0; i < model_get_num_test_units(pmodel); i++) {
         if (pdata->test_unit_widgets[i].obj != NULL) {
-            if (strcasestr(model_get_test_unit_name(pmodel, i), query) != NULL) {
-                count++;
-                last = i;
+            if (strcasecmp(model_get_test_unit_name(pmodel, i), query) == 0) {
+                *choice = i;
+                return 1;
             }
         }
     }
 
-    if (count == 1) {
-        *choice = last;
-        return 1;
-    } else {
-        return 0;
-    }
+    return 0;
 }
 
 

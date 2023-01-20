@@ -36,7 +36,7 @@ void model_init(model_t *pmodel) {
     pmodel->run.test_state          = TEST_STATE_DONE;
     pmodel->run.test_result         = TEST_RESULT_OK;
     pmodel->run.cycle_state         = CYCLE_STATE_STOP;
-    pmodel->run.downloading         = 0;
+    pmodel->run.downloading_state   = DOWNLOADING_STATE_NONE;
     pmodel->run.to_save             = 0;
 
     pmodel->run.test_index = 0;
@@ -115,7 +115,8 @@ uint16_t model_get_current_test_code(model_t *pmodel) {
 
 void model_reset_test_sequence(model_t *pmodel) {
     assert(pmodel != NULL);
-    pmodel->run.test_index = 0;
+    pmodel->run.test_index        = 0;
+    pmodel->run.downloading_state = DOWNLOADING_STATE_NONE;
     memset(pmodel->run.test_done_history, 0, sizeof(pmodel->run.test_result_history));
 }
 
@@ -315,5 +316,21 @@ uint8_t model_is_test_required(test_code_t code) {
 
         default:
             return 0;
+    }
+}
+
+
+uint8_t model_is_stuck_on_download(model_t *pmodel) {
+    assert(pmodel != NULL);
+    if (model_get_cycle_state(pmodel) == CYCLE_STATE_INTERRUPTED) {
+        if (model_get_downloading_state(pmodel) == DOWNLOADING_STATE_NONE) {
+            return 0;
+        } else {
+            // Downloading has failed and we are stopped on that
+            return (model_get_downloading_state(pmodel) == DOWNLOADING_STATE_FAILED &&
+                    !model_get_test_done_history(pmodel, model_get_test_index(pmodel)));
+        }
+    } else {
+        return 0;
     }
 }

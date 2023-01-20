@@ -337,6 +337,7 @@ static int task_manage_message(machine_message_t message, ModbusMaster *master, 
                 } else {
                     response.board_state = BOARD_STATE_ABSENT;
                 }
+                response.board_state = BOARD_STATE_READY;
 
                 switch (registers[1]) {
                     case 0:
