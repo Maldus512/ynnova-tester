@@ -284,6 +284,7 @@ static lv_pman_msg_t process_page_event(void *args, void *data, lv_pman_event_t 
                     switch (event.lvgl.id) {
                         case TEXTAREA_ID:
                         case KEYBOARD_ID:
+                            snprintf(pdata->imei, sizeof(pdata->imei), "%s", lv_textarea_get_text(pdata->textarea));
                             pdata->imei_submitted = 1;
                             view_common_set_hidden(pdata->keyboard, 1);
                             update_page(pmodel, pdata);
@@ -295,7 +296,6 @@ static lv_pman_msg_t process_page_event(void *args, void *data, lv_pman_event_t 
                 case LV_EVENT_VALUE_CHANGED: {
                     switch (event.lvgl.id) {
                         case TEXTAREA_ID: {
-                            snprintf(pdata->imei, sizeof(pdata->imei), "%s", lv_textarea_get_text(pdata->textarea));
                             break;
                         }
                     }
