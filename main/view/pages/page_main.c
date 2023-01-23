@@ -533,53 +533,53 @@ static void update_test_interface(model_t *pmodel, struct page_data *pdata) {
         }
     }
 
+    switch (model_get_cycle_state(pmodel)) {
+        case CYCLE_STATE_STOP:
+            lv_img_set_src(lv_obj_get_child(pdata->btn_play, 0), &img_icon_play);
+
+            if (model_get_test_done(pmodel)) {
+                if (model_get_test_ok(pmodel)) {
+                    lv_obj_set_style_text_color(pdata->lbl_status, STYLE_GREEN, LV_STATE_DEFAULT);
+                    lv_label_set_text(pdata->lbl_status, "Test concluso con successo");
+                } else {
+                    lv_obj_set_style_text_color(pdata->lbl_status, STYLE_RED, LV_STATE_DEFAULT);
+                    lv_label_set_text(pdata->lbl_status, "Errori durante il test");
+                }
+            } else {
+                lv_obj_set_style_text_color(pdata->lbl_status, STYLE_WHITE, LV_STATE_DEFAULT);
+                lv_label_set_text(pdata->lbl_status, "Pronto all'esecuzione");
+            }
+            break;
+
+        case CYCLE_STATE_INTERRUPTED:
+            lv_img_set_src(lv_obj_get_child(pdata->btn_play, 0), &img_icon_reset);
+
+            if ((model_get_test_index(pmodel) == 0 && !model_get_test_done_history(pmodel, 0)) ||
+                model_is_stuck_on_download(pmodel)) {
+                lv_obj_set_style_text_color(pdata->lbl_status, STYLE_WHITE, LV_STATE_DEFAULT);
+                lv_label_set_text(pdata->lbl_status, "Riprova");
+            } else {
+                lv_obj_set_style_text_color(pdata->lbl_status, STYLE_WHITE, LV_STATE_DEFAULT);
+                lv_label_set_text(pdata->lbl_status, "Test interrotto");
+            }
+            break;
+
+        case CYCLE_STATE_TESTING:
+            lv_obj_set_style_text_color(pdata->lbl_status, STYLE_WHITE, LV_STATE_DEFAULT);
+            lv_label_set_text(pdata->lbl_status, "Test in corso");
+            break;
+
+        case CYCLE_STATE_DOWNLOADING:
+            view_common_set_hidden(pdata->download_widget.lbl_err, 1);
+            view_common_set_hidden(pdata->download_widget.spinner, 0);
+            view_common_set_hidden(pdata->download_widget.result_cb, 1);
+            lv_label_set_text(pdata->lbl_status, "Caricamento del firmware in corso");
+            break;
+    }
+
     if (model_get_communication_error(pmodel)) {
         lv_obj_set_style_text_color(pdata->lbl_status, STYLE_RED, LV_STATE_DEFAULT);
         lv_label_set_text(pdata->lbl_status, "Errore di comunicazione!");
-    } else {
-        switch (model_get_cycle_state(pmodel)) {
-            case CYCLE_STATE_STOP:
-                lv_img_set_src(lv_obj_get_child(pdata->btn_play, 0), &img_icon_play);
-
-                if (model_get_test_done(pmodel)) {
-                    if (model_get_test_ok(pmodel)) {
-                        lv_obj_set_style_text_color(pdata->lbl_status, STYLE_GREEN, LV_STATE_DEFAULT);
-                        lv_label_set_text(pdata->lbl_status, "Test concluso con successo");
-                    } else {
-                        lv_obj_set_style_text_color(pdata->lbl_status, STYLE_RED, LV_STATE_DEFAULT);
-                        lv_label_set_text(pdata->lbl_status, "Errori durante il test");
-                    }
-                } else {
-                    lv_obj_set_style_text_color(pdata->lbl_status, STYLE_WHITE, LV_STATE_DEFAULT);
-                    lv_label_set_text(pdata->lbl_status, "Pronto all'esecuzione");
-                }
-                break;
-
-            case CYCLE_STATE_INTERRUPTED:
-                lv_img_set_src(lv_obj_get_child(pdata->btn_play, 0), &img_icon_reset);
-
-                if ((model_get_test_index(pmodel) == 0 && !model_get_test_done_history(pmodel, 0)) ||
-                    model_is_stuck_on_download(pmodel)) {
-                    lv_obj_set_style_text_color(pdata->lbl_status, STYLE_WHITE, LV_STATE_DEFAULT);
-                    lv_label_set_text(pdata->lbl_status, "Riprova");
-                } else {
-                    lv_obj_set_style_text_color(pdata->lbl_status, STYLE_WHITE, LV_STATE_DEFAULT);
-                    lv_label_set_text(pdata->lbl_status, "Test interrotto");
-                }
-                break;
-
-            case CYCLE_STATE_TESTING:
-                lv_obj_set_style_text_color(pdata->lbl_status, STYLE_WHITE, LV_STATE_DEFAULT);
-                lv_label_set_text(pdata->lbl_status, "Test in corso");
-                break;
-
-            case CYCLE_STATE_DOWNLOADING:
-                view_common_set_hidden(pdata->download_widget.lbl_err, 1);
-                view_common_set_hidden(pdata->download_widget.spinner, 0);
-                view_common_set_hidden(pdata->download_widget.result_cb, 1);
-                lv_label_set_text(pdata->lbl_status, "Caricamento del firmware in corso");
-                break;
-        }
     }
 }
 

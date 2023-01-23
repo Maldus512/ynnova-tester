@@ -18,6 +18,7 @@
 void report_save(const char *name, model_t *pmodel) {
     char path[128] = {0};
     snprintf(path, sizeof(path), LOGS_DIR "/%s.csv", name);
+    log_info("Saving log file %s", path);
 
     DIR *dir = opendir(LOGS_DIR);
     if (dir) {
