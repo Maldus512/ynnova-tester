@@ -328,8 +328,6 @@ static int task_manage_message(machine_message_t message, ModbusMaster *master, 
                 response.tag                = MACHINE_RESPONSE_MESSAGE_TAG_STATUS;
                 response.last_executed_test = registers[0];
 
-                // log_info("%i %i %i %i %i", registers[0], registers[1], registers[2], registers[3], registers[4]);
-
                 if (registers[3] && registers[4]) {
                     response.board_state = BOARD_STATE_READY;
                 } else if (registers[4]) {

@@ -5,12 +5,16 @@
 #include "lv_page_manager.h"
 #include "machine/machine.h"
 #include "storage/configuration.h"
+#include "storage/report.h"
 #include "log.h"
 #include "utils/system_time.h"
 #include "gel/timer/timecheck.h"
 #include "stflash.h"
 #include "view/common.h"
 #include "observer.h"
+
+
+static void reset_test_sequence(model_t *pmodel, const char *name);
 
 
 void controller_init(model_t *pmodel) {
@@ -43,8 +47,7 @@ void controller_manage_message(void *args, lv_pman_controller_msg_t msg) {
             break;
 
         case LV_PMAN_CONTROLLER_MSG_TAG_RESET_TEST:
-            model_set_cycle_state(pmodel, CYCLE_STATE_STOP);
-            machine_reset_test();
+            reset_test_sequence(pmodel, msg.imei);
             break;
 
         case LV_PMAN_CONTROLLER_MSG_TAG_RESTART_COMMUNICATION:
@@ -52,9 +55,13 @@ void controller_manage_message(void *args, lv_pman_controller_msg_t msg) {
             break;
 
         case LV_PMAN_CONTROLLER_MSG_TAG_START_TEST_UNIT:
-            machine_start_test(model_get_current_test_code(pmodel));
-            model_set_cycle_state(pmodel, CYCLE_STATE_TESTING);
-            view_simple_event(LV_PMAN_USER_EVENT_TAG_UPDATE);
+            if (model_is_test_sequence_done(pmodel)) {
+                // Do nothing
+            } else {
+                machine_start_test(model_get_current_test_code(pmodel));
+                model_set_cycle_state(pmodel, CYCLE_STATE_TESTING);
+                view_simple_event(LV_PMAN_USER_EVENT_TAG_UPDATE);
+            }
             break;
     }
 }
@@ -154,4 +161,16 @@ void controller_manage(model_t *pmodel) {
     }
 
     observer_observe(pmodel);
+}
+
+
+static void reset_test_sequence(model_t *pmodel, const char *name) {
+    report_save(name, pmodel);
+
+    model_reset_test_sequence(pmodel);
+
+    model_set_cycle_state(pmodel, CYCLE_STATE_STOP);
+    machine_reset_test();
+
+    view_simple_event(LV_PMAN_USER_EVENT_TAG_UPDATE);
 }

@@ -19,7 +19,7 @@ typedef struct {
     lv_pman_controller_msg_tag_t tag;
 
     union {
-        uint16_t test;
+        char imei[32];
     };
 } lv_pman_controller_msg_t;
 

@@ -27,6 +27,8 @@ enum {
     PLAY_BTN_ID,
     RESET_BTN_ID,
     DOWNLOAD_BTN_ID,
+    TEXTAREA_ID,
+    KEYBOARD_ID,
     SKIP_BTN_ID,
 };
 
@@ -48,18 +50,26 @@ struct page_data {
     lv_obj_t *lbl_status;
 
     lv_obj_t *test_interface;
-    lv_obj_t *board_missing_msg;
-    lv_obj_t *board_open_msg;
+    lv_obj_t *curtain;
+
+    lv_obj_t *textarea;
+    lv_obj_t *keyboard;
 
     test_widget_t test_widgets[MAX_TEST_SUITE_LENGTH];
     test_widget_t download_widget;
+
+    uint8_t imei_submitted;
+    char    imei[32];
 };
 
 
 static void          update_page(model_t *pmodel, struct page_data *pdata);
+static void          update_test_interface(model_t *pmodel, struct page_data *pdata);
 static test_widget_t test_widget_create(lv_obj_t *root, uint16_t code);
 static test_widget_t step_widget_create(lv_obj_t *root, const char *text);
 static uint8_t       test_is_selected(model_t *pmodel, size_t num);
+static void          successful_step(test_widget_t widget);
+static void          failed_step(test_widget_t widget);
 
 
 static void *create_page(void *args, void *extra) {
@@ -67,6 +77,9 @@ static void *create_page(void *args, void *extra) {
     (void)extra;
     struct page_data *pdata = lv_mem_alloc(sizeof(struct page_data));
     assert(pdata != NULL);
+
+    memset(pdata->imei, 0, sizeof(pdata->imei));
+    pdata->imei_submitted = 0;
 
     return pdata;
 }
@@ -111,6 +124,7 @@ static void open_page(lv_pman_handle_t handle, void *args, void *data) {
     lv_obj_t *left_panel = lv_obj_create(cont);
     lv_obj_add_style(left_panel, (lv_style_t *)&style_panel, LV_STATE_DEFAULT);
     lv_obj_set_size(left_panel, MAIN_PANEL_WIDTH, LV_VER_RES - 64);
+    lv_obj_clear_flag(left_panel, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_align(left_panel, LV_ALIGN_TOP_LEFT, 0, 0);
 
     obj = lv_obj_create(left_panel);
@@ -141,31 +155,13 @@ static void open_page(lv_pman_handle_t handle, void *args, void *data) {
 
 
     obj = lv_obj_create(left_panel);
-    lv_obj_set_size(obj, LV_PCT(100), LV_PCT(100));
-    lv_obj_add_style(obj, (lv_style_t *)&style_transparent_cont, LV_STATE_DEFAULT);
+    lv_obj_set_size(obj, MAIN_PANEL_WIDTH, LV_VER_RES - 64);
+    lv_obj_set_style_bg_color(obj, lv_color_make(0, 0, 0), LV_STATE_DEFAULT);
+    lv_obj_set_style_bg_opa(obj, LV_OPA_50, LV_STATE_DEFAULT);
+    lv_obj_set_style_border_width(obj, 0, LV_STATE_DEFAULT);
+    lv_obj_center(obj);
 
-    lbl = lv_label_create(obj);
-    lv_label_set_long_mode(lbl, LV_LABEL_LONG_WRAP);
-    lv_obj_set_style_text_align(lbl, LV_TEXT_ALIGN_CENTER, LV_STATE_DEFAULT);
-    lv_obj_set_width(lbl, LV_PCT(70));
-    lv_obj_center(lbl);
-    lv_label_set_text(lbl, "Inserire la scheda nel sistema");
-
-    pdata->board_missing_msg = obj;
-
-
-    obj = lv_obj_create(left_panel);
-    lv_obj_set_size(obj, LV_PCT(100), LV_PCT(100));
-    lv_obj_add_style(obj, (lv_style_t *)&style_transparent_cont, LV_STATE_DEFAULT);
-
-    lbl = lv_label_create(obj);
-    lv_label_set_long_mode(lbl, LV_LABEL_LONG_WRAP);
-    lv_obj_set_style_text_align(lbl, LV_TEXT_ALIGN_CENTER, LV_STATE_DEFAULT);
-    lv_obj_set_width(lbl, LV_PCT(70));
-    lv_obj_center(lbl);
-    lv_label_set_text(lbl, "Chiudere il letto ad aghi");
-
-    pdata->board_open_msg = obj;
+    pdata->curtain = obj;
 
 
     lv_obj_t *status_panel = lv_obj_create(cont);
@@ -179,6 +175,25 @@ static void open_page(lv_pman_handle_t handle, void *args, void *data) {
     lv_obj_set_width(lbl, MAIN_PANEL_WIDTH);
     lv_obj_align(lbl, LV_ALIGN_TOP_LEFT, 16, -8);
     pdata->lbl_status = lbl;
+
+
+    lv_obj_t *textarea = lv_textarea_create(left_panel);
+    lv_obj_set_size(textarea, LV_PCT(100), 64);
+    lv_obj_align(textarea, LV_ALIGN_TOP_MID, 0, -8);
+    lv_textarea_set_text(textarea, "");
+    lv_textarea_set_max_length(textarea, TEST_UNIT_NAME_LENGTH - 1);
+    lv_textarea_set_one_line(textarea, 1);
+    lv_pman_register_obj_id(handle, textarea, TEXTAREA_ID);
+    lv_obj_add_flag(textarea, LV_OBJ_FLAG_CLICKABLE);
+    lv_group_focus_obj(textarea);
+    pdata->textarea = textarea;
+
+    lv_obj_t *keyboard = lv_keyboard_create(lv_scr_act());
+    lv_obj_set_size(keyboard, LV_HOR_RES, LV_VER_RES - 64 - 16);
+    lv_keyboard_set_textarea(keyboard, textarea);
+    lv_pman_register_obj_id(handle, keyboard, KEYBOARD_ID);
+    view_common_set_hidden(keyboard, 1);
+    pdata->keyboard = keyboard;
 
     update_page(pmodel, pdata);
 }
@@ -214,10 +229,6 @@ static lv_pman_msg_t process_page_event(void *args, void *data, lv_pman_event_t 
                                     if (model_is_stuck_on_download(pmodel)) {
                                         msg.cmsg.tag = LV_PMAN_CONTROLLER_MSG_TAG_DOWNLOAD;
                                     } else {
-                                        if (model_is_test_sequence_done(pmodel)) {
-                                            model_reset_test_sequence(pmodel);
-                                        }
-
                                         msg.cmsg.tag = LV_PMAN_CONTROLLER_MSG_TAG_START_TEST_UNIT;
                                     }
                                     break;
@@ -232,8 +243,11 @@ static lv_pman_msg_t process_page_event(void *args, void *data, lv_pman_event_t 
                             break;
 
                         case RESET_BTN_ID:
-                            model_reset_test_sequence(pmodel);
+                            snprintf(msg.cmsg.imei, sizeof(msg.cmsg.imei), "%s", pdata->imei);
                             msg.cmsg.tag = LV_PMAN_CONTROLLER_MSG_TAG_RESET_TEST;
+
+                            pdata->imei_submitted = 0;
+                            lv_group_focus_obj(pdata->textarea);
                             update_page(pmodel, pdata);
                             break;
 
@@ -249,6 +263,41 @@ static lv_pman_msg_t process_page_event(void *args, void *data, lv_pman_event_t 
                         case DOWNLOAD_BTN_ID:
                             msg.cmsg.tag = LV_PMAN_CONTROLLER_MSG_TAG_DOWNLOAD;
                             break;
+
+                        case TEXTAREA_ID:
+                            lv_group_focus_obj(pdata->textarea);
+                            break;
+                    }
+                    break;
+                }
+
+                case LV_EVENT_CANCEL: {
+                    switch (event.lvgl.id) {
+                        case KEYBOARD_ID:
+                            view_common_set_hidden(pdata->keyboard, 1);
+                            break;
+                    }
+                    break;
+                }
+
+                case LV_EVENT_READY: {
+                    switch (event.lvgl.id) {
+                        case TEXTAREA_ID:
+                        case KEYBOARD_ID:
+                            pdata->imei_submitted = 1;
+                            view_common_set_hidden(pdata->keyboard, 1);
+                            update_page(pmodel, pdata);
+                            break;
+                    }
+                    break;
+                }
+
+                case LV_EVENT_VALUE_CHANGED: {
+                    switch (event.lvgl.id) {
+                        case TEXTAREA_ID: {
+                            snprintf(pdata->imei, sizeof(pdata->imei), "%s", lv_textarea_get_text(pdata->textarea));
+                            break;
+                        }
                     }
                     break;
                 }
@@ -357,32 +406,47 @@ static void update_page(model_t *pmodel, struct page_data *pdata) {
 
     uint8_t control_disabled = model_get_cycle_state(pmodel) == CYCLE_STATE_TESTING ||
                                model_get_cycle_state(pmodel) == CYCLE_STATE_DOWNLOADING ||
-                               model_get_communication_error(pmodel);
+                               model_get_communication_error(pmodel) || !pdata->imei_submitted;
 
     view_common_set_disabled(pdata->btn_play, control_disabled);
     view_common_set_disabled(pdata->btn_reset, control_disabled);
 
-    switch (model_get_board_state(pmodel)) {
-        case BOARD_STATE_ABSENT:
-            view_common_set_hidden(pdata->test_interface, 1);
-            view_common_set_hidden(pdata->board_missing_msg, 0);
-            view_common_set_hidden(pdata->board_open_msg, 1);
-            break;
+    if (pdata->imei_submitted) {
+        lv_textarea_set_text(pdata->textarea, "");
+        view_common_set_hidden(pdata->textarea, 1);
+        view_common_set_hidden(pdata->keyboard, 1);
+        view_common_set_hidden(pdata->test_interface, 0);
+        update_test_interface(pmodel, pdata);
 
-        case BOARD_STATE_PRESENT_OPEN:
-            view_common_set_hidden(pdata->test_interface, 1);
-            view_common_set_hidden(pdata->board_missing_msg, 1);
-            view_common_set_hidden(pdata->board_open_msg, 0);
-            break;
+        switch (model_get_board_state(pmodel)) {
+            case BOARD_STATE_ABSENT:
+                lv_label_set_text(pdata->lbl_status, "Inserire la scheda nel sistema");
+                view_common_set_hidden(pdata->curtain, 0);
+                break;
 
-        case BOARD_STATE_READY:
-            view_common_set_hidden(pdata->test_interface, 0);
-            view_common_set_hidden(pdata->board_missing_msg, 1);
-            view_common_set_hidden(pdata->board_open_msg, 1);
-            break;
+            case BOARD_STATE_PRESENT_OPEN:
+                lv_label_set_text(pdata->lbl_status, "Chiudere il letto ad aghi");
+                view_common_set_hidden(pdata->curtain, 0);
+                break;
+
+            case BOARD_STATE_READY:
+                view_common_set_hidden(pdata->curtain, 1);
+                break;
+        }
+    } else {
+        lv_label_set_text(pdata->lbl_status, "Scannerizzare o inserire il codice del dispositivo");
+        lv_group_focus_obj(pdata->textarea);
+
+        view_common_set_hidden(pdata->textarea, 0);
+        view_common_set_hidden(pdata->curtain, 1);
+        view_common_set_hidden(pdata->test_interface, 1);
     }
+}
 
+
+static void update_test_interface(model_t *pmodel, struct page_data *pdata) {
     view_common_set_hidden(pdata->download_widget.btn_err, 1);
+
     switch (model_get_downloading_state(pmodel)) {
         case DOWNLOADING_STATE_NONE:
             lv_obj_set_style_border_opa(pdata->download_widget.obj, LV_OPA_TRANSP, LV_STATE_DEFAULT);
@@ -398,35 +462,11 @@ static void update_page(model_t *pmodel, struct page_data *pdata) {
             break;
 
         case DOWNLOADING_STATE_SUCCESSFUL:
-            lv_obj_set_style_border_opa(pdata->download_widget.obj, LV_OPA_COVER, LV_STATE_DEFAULT);
-            lv_obj_set_style_border_color(pdata->download_widget.obj, STYLE_GREEN, LV_STATE_DEFAULT);
-            lv_obj_set_style_bg_img_src(pdata->download_widget.result_cb, LV_SYMBOL_OK,
-                                        LV_STATE_CHECKED | LV_PART_INDICATOR);
-
-            lv_obj_set_height(pdata->download_widget.obj, TEST_CONT_COLLAPSED_HEIGHT);
-            lv_obj_align(pdata->download_widget.lbl, LV_ALIGN_LEFT_MID, 0, 0);
-            lv_obj_align(pdata->download_widget.result_cb, LV_ALIGN_RIGHT_MID, 16, 0);
-
-            view_common_set_hidden(pdata->download_widget.lbl_err, 1);
-            view_common_set_hidden(pdata->download_widget.spinner, 1);
-            view_common_set_hidden(pdata->download_widget.result_cb, 0);
-            view_common_set_checked(pdata->download_widget.result_cb, 1);
+            successful_step(pdata->download_widget);
             break;
 
         case DOWNLOADING_STATE_FAILED:
-            lv_obj_set_style_border_opa(pdata->download_widget.obj, LV_OPA_COVER, LV_STATE_DEFAULT);
-            lv_obj_set_style_border_color(pdata->download_widget.obj, STYLE_RED, LV_STATE_DEFAULT);
-            lv_obj_set_style_bg_img_src(pdata->download_widget.result_cb, LV_SYMBOL_CLOSE,
-                                        LV_STATE_CHECKED | LV_PART_INDICATOR);
-
-            lv_obj_set_height(pdata->download_widget.obj, TEST_CONT_EXTENDED_HEIGHT);
-            lv_obj_align(pdata->download_widget.lbl, LV_ALIGN_TOP_LEFT, 0, 0);
-            lv_obj_align(pdata->download_widget.result_cb, LV_ALIGN_TOP_RIGHT, 16, 0);
-
-            view_common_set_hidden(pdata->download_widget.lbl_err, 0);
-            view_common_set_hidden(pdata->download_widget.spinner, 1);
-            view_common_set_hidden(pdata->download_widget.result_cb, 0);
-            view_common_set_checked(pdata->download_widget.result_cb, 1);
+            failed_step(pdata->download_widget);
 
             lv_label_set_text(pdata->download_widget.lbl_err, "Programmazione fallita!");
             break;
@@ -440,29 +480,16 @@ static void update_page(model_t *pmodel, struct page_data *pdata) {
             uint16_t result = model_get_test_result_history(pmodel, i);
             switch (result) {
                 case TEST_RESULT_OK:
-                    lv_obj_set_height(pdata->test_widgets[i].obj, TEST_CONT_COLLAPSED_HEIGHT);
-                    lv_obj_align(pdata->test_widgets[i].lbl, LV_ALIGN_LEFT_MID, 0, 0);
-                    lv_obj_align(pdata->test_widgets[i].result_cb, LV_ALIGN_RIGHT_MID, 16, 0);
-                    view_common_set_hidden(pdata->test_widgets[i].lbl_err, 1);
-                    view_common_set_hidden(pdata->test_widgets[i].btn_err, 1);
-                    lv_obj_set_style_border_color(pdata->test_widgets[i].obj, STYLE_GREEN, LV_STATE_DEFAULT);
-                    lv_obj_set_style_bg_img_src(pdata->test_widgets[i].result_cb, LV_SYMBOL_OK,
-                                                LV_STATE_CHECKED | LV_PART_INDICATOR);
+                    successful_step(pdata->test_widgets[i]);
                     break;
 
                 default:
-                    lv_obj_set_height(pdata->test_widgets[i].obj, TEST_CONT_EXTENDED_HEIGHT);
-                    lv_obj_align(pdata->test_widgets[i].lbl, LV_ALIGN_TOP_LEFT, 0, 0);
-                    lv_obj_align(pdata->test_widgets[i].result_cb, LV_ALIGN_TOP_RIGHT, 16, 0);
-                    view_common_set_hidden(pdata->test_widgets[i].lbl_err, 0);
-                    view_common_set_hidden(pdata->test_widgets[i].btn_err, model_get_test_index(pmodel) != i);
+                    failed_step(pdata->test_widgets[i]);
 
+                    view_common_set_hidden(pdata->test_widgets[i].btn_err, model_get_test_index(pmodel) != i);
 
                     lv_label_set_text_fmt(pdata->test_widgets[i].lbl_err, "Errore %i: %s", result,
                                           error_to_string(result));
-                    lv_obj_set_style_border_color(pdata->test_widgets[i].obj, STYLE_RED, LV_STATE_DEFAULT);
-                    lv_obj_set_style_bg_img_src(pdata->test_widgets[i].result_cb, LV_SYMBOL_CLOSE,
-                                                LV_STATE_CHECKED | LV_PART_INDICATOR);
 
                     if (model_is_test_required(model_get_test_code_from_current_unit(pmodel, i)) ||
                         i == num_tests - 1) {
@@ -579,6 +606,39 @@ static uint8_t test_is_selected(model_t *pmodel, size_t num) {
     } else {
         return 0;
     }
+}
+
+
+static void successful_step(test_widget_t widget) {
+    lv_obj_set_style_border_opa(widget.obj, LV_OPA_COVER, LV_STATE_DEFAULT);
+    lv_obj_set_style_border_color(widget.obj, STYLE_GREEN, LV_STATE_DEFAULT);
+    lv_obj_set_style_bg_img_src(widget.result_cb, LV_SYMBOL_OK, LV_STATE_CHECKED | LV_PART_INDICATOR);
+
+    lv_obj_set_height(widget.obj, TEST_CONT_COLLAPSED_HEIGHT);
+    lv_obj_align(widget.lbl, LV_ALIGN_LEFT_MID, 0, 0);
+    lv_obj_align(widget.result_cb, LV_ALIGN_RIGHT_MID, 16, 0);
+
+    view_common_set_hidden(widget.lbl_err, 1);
+    view_common_set_hidden(widget.spinner, 1);
+    view_common_set_hidden(widget.result_cb, 0);
+    view_common_set_checked(widget.result_cb, 1);
+}
+
+
+static void failed_step(test_widget_t widget) {
+    lv_obj_set_height(widget.obj, TEST_CONT_EXTENDED_HEIGHT);
+    lv_obj_align(widget.lbl, LV_ALIGN_TOP_LEFT, 0, 0);
+    lv_obj_align(widget.result_cb, LV_ALIGN_TOP_RIGHT, 16, 0);
+    view_common_set_hidden(widget.lbl_err, 0);
+
+    lv_obj_set_style_border_opa(widget.obj, LV_OPA_COVER, LV_STATE_DEFAULT);
+    lv_obj_set_style_border_color(widget.obj, STYLE_RED, LV_STATE_DEFAULT);
+    lv_obj_set_style_bg_img_src(widget.result_cb, LV_SYMBOL_CLOSE, LV_STATE_CHECKED | LV_PART_INDICATOR);
+
+    view_common_set_hidden(widget.lbl_err, 0);
+    view_common_set_hidden(widget.spinner, 1);
+    view_common_set_hidden(widget.result_cb, 0);
+    view_common_set_checked(widget.result_cb, 1);
 }
 
 

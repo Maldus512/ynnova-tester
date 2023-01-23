@@ -3,6 +3,8 @@
 
 const char *error_to_string(int error) {
     switch (error) {
+        case 1:
+            return "Successo";
         case 100:
             return "Guasto Generico";
         case 101:

@@ -139,14 +139,7 @@ static lv_pman_msg_t process_page_event(void *args, void *data, lv_pman_event_t 
                 case LV_EVENT_VALUE_CHANGED: {
                     switch (event.lvgl.id) {
                         case TEXTAREA_ID: {
-                            size_t choice = 0;
-                            if (perfect_fit(pmodel, pdata, &choice)) {
-                                model_set_test_unit_index(pmodel, event.lvgl.number);
-                                msg.vmsg.tag  = LV_PMAN_VIEW_MSG_TAG_REBASE;
-                                msg.vmsg.page = &page_main;
-                            } else {
-                                update_page(pmodel, pdata);
-                            }
+                            update_page(pmodel, pdata);
                             break;
                         }
                     }
@@ -164,6 +157,16 @@ static lv_pman_msg_t process_page_event(void *args, void *data, lv_pman_event_t 
 
                 case LV_EVENT_READY: {
                     switch (event.lvgl.id) {
+                        case TEXTAREA_ID: {
+                            size_t choice = 0;
+                            if (perfect_fit(pmodel, pdata, &choice)) {
+                                model_set_test_unit_index(pmodel, event.lvgl.number);
+                                msg.vmsg.tag  = LV_PMAN_VIEW_MSG_TAG_REBASE;
+                                msg.vmsg.page = &page_main;
+                            }
+                            break;
+                        }
+
                         case KEYBOARD_ID:
                             view_common_set_hidden(pdata->keyboard, 1);
                             break;
