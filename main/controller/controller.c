@@ -17,6 +17,9 @@
 static void reset_test_sequence(model_t *pmodel, const char *name);
 
 
+static uint8_t downloaded = 0;
+
+
 void controller_init(model_t *pmodel) {
     machine_init();
     stflash_init();
@@ -89,24 +92,32 @@ void controller_manage(model_t *pmodel) {
                                                 machine_msg.test_state, machine_msg.test_result);
 
                 if (update) {
+                    log_info("New test state: %i %i %i", model_get_test_result(pmodel), model_get_test_state(pmodel),
+                             model_get_last_test(pmodel));
+
                     if (old_test_result != model_get_test_result(pmodel)) {
-                        machine_test_error();
+                        if (model_get_test_result(pmodel) != TEST_RESULT_OK && model_get_test_result(pmodel) != 0) {
+                            machine_test_error();
+                        }
+                        old_test_result = model_get_test_result(pmodel);
                     }
 
                     if (model_get_cycle_state(pmodel) == CYCLE_STATE_TESTING &&
-                        model_get_test_state(pmodel) == TEST_STATE_DONE) {
+                        model_get_test_state(pmodel) == TEST_STATE_DONE &&
+                        model_get_last_test(pmodel) == model_get_current_test_code(pmodel)) {
                         if (model_get_test_result(pmodel) != TEST_RESULT_OK) {
                             model_set_cycle_state(pmodel, CYCLE_STATE_INTERRUPTED);
                         } else {
                             if (model_next_test(pmodel) == 0) {
-                                if (model_get_current_test_code(pmodel) >= TEST_PROGRAMMING_THRESHOLD &&
+                                if (model_get_current_test_code(pmodel) == TEST_CODE_60_PROG &&
                                     model_get_downloading_state(pmodel) == DOWNLOADING_STATE_NONE) {
                                     // Before moving on program the board
                                     model_set_cycle_state(pmodel, CYCLE_STATE_DOWNLOADING);
-                                    stflash_run();
+                                    log_info("Startint test for download");
                                 } else {
-                                    machine_start_test(model_get_current_test_code(pmodel));
+                                    log_info("Running test %i", model_get_current_test_code(pmodel));
                                 }
+                                machine_start_test(model_get_current_test_code(pmodel));
                             } else if (model_get_downloading_state(pmodel) == DOWNLOADING_STATE_NONE) {
                                 // As last step program the board
                                 model_set_cycle_state(pmodel, CYCLE_STATE_DOWNLOADING);
@@ -116,6 +127,11 @@ void controller_manage(model_t *pmodel) {
                                 model_set_cycle_state(pmodel, CYCLE_STATE_STOP);
                             }
                         }
+                    } else if (model_get_cycle_state(pmodel) == CYCLE_STATE_DOWNLOADING && downloaded == 0 &&
+                               model_get_last_test(pmodel) == TEST_CODE_60_PROG) {
+                        log_info("Downloading");
+                        stflash_run();
+                        downloaded = 1;
                     }
 
                     view_simple_event(LV_PMAN_USER_EVENT_TAG_UPDATE);
@@ -138,10 +154,12 @@ void controller_manage(model_t *pmodel) {
                 model_set_downloading_state(pmodel, DOWNLOADING_STATE_FAILED);
                 model_set_cycle_state(pmodel, CYCLE_STATE_INTERRUPTED);
                 // view_common_toast("Caricamento del firmware fallito");
+                machine_test_error();
                 break;
         }
 
         if (model_get_cycle_state(pmodel) != CYCLE_STATE_INTERRUPTED) {
+            model_next_test(pmodel);
             if (model_is_test_sequence_done(pmodel)) {
                 machine_test_done();
                 model_set_cycle_state(pmodel, CYCLE_STATE_INTERRUPTED);
@@ -168,6 +186,7 @@ static void reset_test_sequence(model_t *pmodel, const char *name) {
     report_save(name, pmodel);
 
     model_reset_test_sequence(pmodel);
+    downloaded = 0;
 
     model_set_cycle_state(pmodel, CYCLE_STATE_STOP);
     machine_reset_test();

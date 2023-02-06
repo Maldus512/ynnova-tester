@@ -5,13 +5,14 @@
 #include "log.h"
 
 
-test_code_t test_codes[30] = {
+test_code_t test_codes[31] = {
     TEST_CODE_REQUIRED_02, TEST_CODE_REQUIRED_03, TEST_CODE_REQUIRED_04, TEST_CODE_REQUIRED_05, TEST_CODE_REQUIRED_06,
     TEST_CODE_REQUIRED_07, TEST_CODE_08,          TEST_CODE_09,          TEST_CODE_11,          TEST_CODE_13,
     TEST_CODE_15,          TEST_CODE_17,          TEST_CODE_19,          TEST_CODE_20,          TEST_CODE_21,
     TEST_CODE_24,          TEST_CODE_27,          TEST_CODE_35,          TEST_CODE_43,          TEST_CODE_45,
     TEST_CODE_47,          TEST_CODE_49,          TEST_CODE_51,          TEST_CODE_53,          TEST_CODE_55,
-    TEST_CODE_57,          TEST_CODE_58,          TEST_CODE_59,          TEST_CODE_61,          TEST_CODE_62,
+    TEST_CODE_57,          TEST_CODE_58,          TEST_CODE_59,          TEST_CODE_60_PROG,     TEST_CODE_61,
+    TEST_CODE_62,
 };
 
 
@@ -117,7 +118,8 @@ void model_reset_test_sequence(model_t *pmodel) {
     assert(pmodel != NULL);
     pmodel->run.test_index        = 0;
     pmodel->run.downloading_state = DOWNLOADING_STATE_NONE;
-    memset(pmodel->run.test_done_history, 0, sizeof(pmodel->run.test_result_history));
+    memset(pmodel->run.test_done_history, 0, sizeof(pmodel->run.test_done_history));
+    memset(pmodel->run.test_result_history, 0, sizeof(pmodel->run.test_result_history));
 }
 
 
@@ -327,8 +329,8 @@ uint8_t model_is_stuck_on_download(model_t *pmodel) {
             return 0;
         } else {
             // Downloading has failed and we are stopped on that
-            return (model_get_downloading_state(pmodel) == DOWNLOADING_STATE_FAILED &&
-                    !model_get_test_done_history(pmodel, model_get_test_index(pmodel)));
+            return model_get_downloading_state(pmodel) == DOWNLOADING_STATE_FAILED &&
+                   model_get_current_test_code(pmodel) == TEST_CODE_60_PROG;
         }
     } else {
         return 0;

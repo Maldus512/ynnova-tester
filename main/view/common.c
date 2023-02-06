@@ -1,6 +1,7 @@
 #include "view.h"
 #include "style/style.h"
 #include "common.h"
+#include "cJSON.h"
 
 
 static void delete_obj_timer(lv_timer_t *timer);
@@ -71,6 +72,24 @@ lv_obj_t *view_common_toast_with_parent(const char *msg, lv_obj_t *parent) {
     lv_timer_set_repeat_count(timer, 1);
 
     return obj;
+}
+
+
+uint8_t view_validate_json_input(lv_obj_t *textarea) {
+    const char *query = lv_textarea_get_text(textarea);
+
+    cJSON *json = cJSON_Parse(query);
+    if (json != NULL) {
+        cJSON *json_part_number = cJSON_GetObjectItem(json, "partNumber");
+        if (cJSON_IsString(json_part_number)) {
+            lv_textarea_set_text(textarea, cJSON_GetStringValue(json_part_number));
+            return 1;
+        } else {
+            return 0;
+        }
+    } else {
+        return 0;
+    }
 }
 
 

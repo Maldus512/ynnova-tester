@@ -27,6 +27,8 @@ struct page_data {
     lv_obj_t *textarea;
     lv_obj_t *keyboard;
     lv_obj_t *lbl_msg;
+
+    uint8_t newline;
 };
 
 
@@ -55,7 +57,8 @@ static void open_page(lv_pman_handle_t handle, void *args, void *data) {
     struct page_data *pdata  = data;
     model_t          *pmodel = args;
 
-    pdata->handle = handle;
+    pdata->handle  = handle;
+    pdata->newline = 0;
 
     lv_obj_t *cont = lv_obj_create(lv_scr_act());
     lv_obj_set_size(cont, LV_PCT(100), LV_PCT(100));
@@ -124,7 +127,8 @@ static lv_pman_msg_t process_page_event(void *args, void *data, lv_pman_event_t 
                 case LV_EVENT_CLICKED: {
                     switch (event.lvgl.id) {
                         case TEXTAREA_ID:
-                            view_common_set_hidden(pdata->keyboard, 0);
+                            view_common_set_hidden(pdata->keyboard, pdata->newline);
+                            pdata->newline = 0;
                             break;
 
                         case SELECT_TEST_UNIT_BTN_ID:
@@ -158,7 +162,8 @@ static lv_pman_msg_t process_page_event(void *args, void *data, lv_pman_event_t 
                 case LV_EVENT_READY: {
                     switch (event.lvgl.id) {
                         case TEXTAREA_ID: {
-                            size_t choice = 0;
+                            pdata->newline = 1;
+                            size_t choice  = 0;
                             if (perfect_fit(pmodel, pdata, &choice)) {
                                 model_set_test_unit_index(pmodel, event.lvgl.number);
                                 msg.vmsg.tag  = LV_PMAN_VIEW_MSG_TAG_REBASE;
@@ -207,12 +212,12 @@ static void update_page(model_t *pmodel, struct page_data *pdata) {
             }
         }
     }
-
     view_common_set_hidden(pdata->lbl_msg, any);
 }
 
 
 static uint8_t perfect_fit(model_t *pmodel, struct page_data *pdata, size_t *choice) {
+    view_validate_json_input(pdata->textarea);
     const char *query = lv_textarea_get_text(pdata->textarea);
 
     for (size_t i = 0; i < model_get_num_test_units(pmodel); i++) {

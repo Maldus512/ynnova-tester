@@ -8,9 +8,8 @@
 
 #define MAX_NUM_TEST_UNITS         16
 #define MAX_TEST_SUITE_LENGTH      64
-#define TEST_UNIT_NAME_LENGTH      32
+#define TEST_UNIT_NAME_LENGTH      64
 #define DEFAULT_TEST_CONFIGURATION 0
-#define TEST_PROGRAMMING_THRESHOLD TEST_CODE_61
 
 
 #define GETTER(name, field)                                                                                            \
@@ -72,6 +71,7 @@ typedef enum {
     TEST_CODE_57          = 57,
     TEST_CODE_58          = 58,
     TEST_CODE_59          = 59,
+    TEST_CODE_60_PROG     = 60,
     TEST_CODE_61          = 61,
     TEST_CODE_62          = 62,
 } test_code_t;
@@ -181,7 +181,7 @@ GETTER(test_state, run.test_state);
 SETTER(test_index, run.test_index);
 
 
-extern test_code_t test_codes[30];
+extern test_code_t test_codes[31];
 
 
 #endif

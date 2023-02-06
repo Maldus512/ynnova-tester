@@ -160,6 +160,10 @@ static lv_pman_msg_t process_page_event(void *args, void *data, lv_pman_event_t 
 
                 case LV_EVENT_READY: {
                     switch (event.lvgl.id) {
+                        case TEXTAREA_ID:
+                            view_validate_json_input(pdata->textarea);
+                            break;
+
                         case KEYBOARD_ID:
                             view_common_set_hidden(pdata->keyboard, 1);
                             break;

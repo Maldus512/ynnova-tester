@@ -25,29 +25,42 @@ void stflash_init(void) {
 
 
 void stflash_run(void) {
+    log_info("Programming");
     if ((pid = fork()) == 0) {
         // First child
 
         pid_t second_pid = 0;
+        pid_t third_pid  = 0;
         if ((second_pid = fork()) == 0) {
             // Second child
-            const char *argv[] = {"st-flash", "write", "boot.bin", "0x8000000", NULL};
-            execv("st-flash", argv);
-            exit(1);     // If we are here exec failed
+
+            if ((third_pid = fork()) == 0) {
+                // Third child
+                log_info("erasing");
+                execl("./data/st-flash", "st-flash", "erase", NULL);
+            } else {
+                // Second (as) parent
+                int status = 0;
+                if (waitpid(third_pid, &status, 0) > 0) {
+                    log_info("Bootloader");
+                    sleep(2);
+                    execl("./data/st-flash", "st-flash", "write", "./data/boot.bin", "0x8000000", NULL);
+                }
+                exit(1);
+            }
         } else {
-            // Second parent
+            // First (as) parent
             int status = 0;
             if (waitpid(second_pid, &status, 0) > 0) {
                 if (status == 0) {
+                    log_info("Application");
                     // Second child finished successfully
-                    execl("st-flash", "write", "app.bin", "0x8008000", NULL);
-                    exit(1);     // If we are here exec failed
+                    sleep(2);
+                    execl("./data/st-flash", "st-flash", "write", "./data/appl.bin", "0x8008000", NULL);
                 } else {
                     log_warn("Process terminating with code %i", status);
-                    exit(1);
                 }
-            } else {
-                exit(1);
+                exit(1);     // If we are here exec failed
             }
         }
         // stflash_response_t message = STFLASH_RESPONSE_OK;

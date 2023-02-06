@@ -46,6 +46,7 @@ void report_save(const char *name, model_t *pmodel) {
         if (done) {
             const char *test_string  = test_code_to_string(code);
             const char *error_string = error_to_string(result);
+            error_string             = error_string != NULL ? error_string : "";
             snprintf(line, sizeof(line), "%i, %s, %i, %s\n", code, test_string == NULL ? "" : test_string, result,
                      error_string == NULL ? "" : error_string);
         }

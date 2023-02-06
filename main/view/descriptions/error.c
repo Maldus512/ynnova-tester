@@ -3,8 +3,6 @@
 
 const char *error_to_string(int error) {
     switch (error) {
-        case 1:
-            return "Successo";
         case 100:
             return "Guasto Generico";
         case 101:
@@ -238,13 +236,13 @@ const char *error_to_string(int error) {
         case 215:
             return "STEP58: ERRORE I2C EEPROM";
         case 216:
-            return "";
+            return "STEP61:NO 5V0 TP94";
         case 217:
-            return "";
+            return "STEP61:NO 2V5 TP95";
         case 218:
-            return "";
+            return "STEP62:NO 0V0 TP65";
         case 219:
-            return "";
+            return "STEP62:NO 0V0 TP68";
         case 220:
             return "TEST43: FDI1 NO SEGNALE TP59";
         case 221:
@@ -257,56 +255,6 @@ const char *error_to_string(int error) {
             return "STEP59: NO 0V TP144";
         case 225:
             return "STEP59: NO 3,3V TP332";
-        case 226:
-            return "";
-        case 227:
-            return "";
-        case 228:
-            return "";
-        case 229:
-            return "";
-        case 230:
-            return "";
-        case 231:
-            return "";
-        case 232:
-            return "";
-        case 233:
-            return "";
-        case 234:
-            return "";
-        case 235:
-            return "";
-        case 236:
-            return "";
-        case 237:
-            return "";
-        case 238:
-            return "";
-        case 239:
-            return "";
-        case 240:
-            return "";
-        case 241:
-            return "";
-        case 242:
-            return "";
-        case 243:
-            return "";
-        case 244:
-            return "";
-        case 245:
-            return "";
-        case 246:
-            return "";
-        case 247:
-            return "";
-        case 248:
-            return "";
-        case 249:
-            return "";
-        case 250:
-            return "";
         default:
             return NULL;
     }
