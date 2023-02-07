@@ -54,13 +54,5 @@ void report_save(const char *name, model_t *pmodel) {
         fwrite(line, 1, strlen(line), f);
     }
 
-    if (model_get_downloading_state(pmodel) == DOWNLOADING_STATE_SUCCESSFUL) {
-        const char *line = ", Programmazione, , Successo";
-        fwrite(line, 1, strlen(line), f);
-    } else {
-        const char *line = ", Programmazione, , Fallimento";
-        fwrite(line, 1, strlen(line), f);
-    }
-
     fclose(f);
 }
