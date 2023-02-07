@@ -30,10 +30,11 @@ void stflash_run(void) {
         // First child
 
         pid_t second_pid = 0;
-        pid_t third_pid  = 0;
         if ((second_pid = fork()) == 0) {
             // Second child
 
+#ifdef ERASE
+            pid_t third_pid = 0;
             if ((third_pid = fork()) == 0) {
                 // Third child
                 log_info("erasing");
@@ -42,12 +43,15 @@ void stflash_run(void) {
                 // Second (as) parent
                 int status = 0;
                 if (waitpid(third_pid, &status, 0) > 0) {
+#endif
                     log_info("Bootloader");
                     sleep(2);
                     execl("./data/st-flash", "st-flash", "write", "./data/boot.bin", "0x8000000", NULL);
+                    exit(1);
+#ifdef ERASE
                 }
-                exit(1);
             }
+#endif
         } else {
             // First (as) parent
             int status = 0;

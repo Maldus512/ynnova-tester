@@ -62,6 +62,7 @@ void controller_manage_message(void *args, lv_pman_controller_msg_t msg) {
                 // Do nothing
             } else {
                 machine_start_test(model_get_current_test_code(pmodel));
+                model_set_test_state(pmodel, TEST_STATE_STARTING);
                 model_set_cycle_state(pmodel, CYCLE_STATE_TESTING);
                 view_simple_event(LV_PMAN_USER_EVENT_TAG_UPDATE);
             }
@@ -106,6 +107,7 @@ void controller_manage(model_t *pmodel) {
                         model_get_test_state(pmodel) == TEST_STATE_DONE &&
                         model_get_last_test(pmodel) == model_get_current_test_code(pmodel)) {
                         if (model_get_test_result(pmodel) != TEST_RESULT_OK) {
+                            log_warn("Interrupting due to error");
                             model_set_cycle_state(pmodel, CYCLE_STATE_INTERRUPTED);
                         } else {
                             if (model_next_test(pmodel) == 0) {
@@ -123,6 +125,7 @@ void controller_manage(model_t *pmodel) {
                                 model_set_cycle_state(pmodel, CYCLE_STATE_DOWNLOADING);
                                 stflash_run();
                             } else {
+                                log_info("Test done!");
                                 machine_test_done();
                                 model_set_cycle_state(pmodel, CYCLE_STATE_STOP);
                             }
@@ -172,7 +175,7 @@ void controller_manage(model_t *pmodel) {
         view_simple_event(LV_PMAN_USER_EVENT_TAG_UPDATE);
     }
 
-    if (is_expired(status_ts, get_millis(), 200UL)) {
+    if (is_expired(status_ts, get_millis(), 100UL)) {
         machine_read_status();
 
         status_ts = get_millis();

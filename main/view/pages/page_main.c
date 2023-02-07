@@ -456,7 +456,7 @@ static void update_page(model_t *pmodel, struct page_data *pdata) {
 static void update_test_interface(model_t *pmodel, struct page_data *pdata) {
     size_t num_tests = model_get_num_tests_in_current_unit(pmodel);
     for (size_t i = 0; i < num_tests; i++) {
-        if (model_get_test_done_history(pmodel, i) && model_get_cycle_state(pmodel) != CYCLE_STATE_STOP) {
+        if (model_get_test_done_history(pmodel, i)) {
             view_common_set_checked(pdata->test_widgets[i].result_cb, 1);
 
             uint16_t result = model_get_test_result_history(pmodel, i);
